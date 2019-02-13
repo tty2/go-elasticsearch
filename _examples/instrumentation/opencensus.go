@@ -110,6 +110,19 @@ func main() {
 	log.SetFlags(0)
 	start := time.Now()
 
+	// Create new elasticsearch client ...
+	//
+	es, err := elasticsearch.NewClient(
+		elasticsearch.Config{
+			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+			// ... using the "ochttp" wrapper for instrumentation
+			Transport: &ochttp.Transport{},
+			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+		})
+	if err != nil {
+		log.Fatal("ERROR: %s", err)
+	}
+
 	// Set up the "done" channel
 	//
 	done := make(chan os.Signal)
@@ -151,17 +164,6 @@ func main() {
 	//
 	trace.ApplyConfig(trace.Config{DefaultSampler: trace.ProbabilitySampler(0.5)})
 	trace.RegisterExporter(&ConsoleExporter{})
-
-	// Create new elasticsearch client ...
-	//
-	es, err := elasticsearch.NewClient(
-		elasticsearch.Config{
-			// ... using the "ochttp" wrapper
-			Transport: &ochttp.Transport{},
-		})
-	if err != nil {
-		log.Fatal("ERROR: %s", err)
-	}
 
 	// Initialize the context
 	//
