@@ -27,7 +27,7 @@ matrix:
         - make lint
         - gotestsum --format=short-verbose --junitfile=/tmp/unit-junit.xml -- -coverprofile=/tmp/unit.cov -tags='unit' -timeout=1h -v ./...
       after_script:
-        - test -f /tmp/unit.cov && bash <(curl -s https://codecov.io/bash) -f /tmp/unit.cov
+        - test -f /tmp/unit.cov && bash <(curl -s https://codecov.io/bash) -f /tmp/unit.cov -c -F unit
 
     - name: Unit Tests | Linux, go:stable, gomod=off
       os: linux
@@ -109,7 +109,7 @@ matrix:
       script:
         - gotestsum --format=short-verbose --junitfile=/tmp/integration-report.xml -- -race -cover -coverprofile=/tmp/integration-client.cov -tags='integration' -timeout=1h github.com/elastic/go-elasticsearch
       after_script:
-        - test -f /tmp/integration-client.cov && bash <(curl -s https://codecov.io/bash) -f /tmp/integration-client.cov
+        - test -f /tmp/integration-client.cov && bash <(curl -s https://codecov.io/bash) -f /tmp/integration-client.cov -c -F integration
 
 
     - name: Integration Tests, API | Linux, go:stable
@@ -160,7 +160,7 @@ matrix:
         # ------ Run tests -----------------------------------------------------------------------
         - cd ${TRAVIS_HOME}/gopath/src/github.com/elastic/go-elasticsearch/esapi/test && time gotestsum --format=short-verbose --junitfile=/tmp/integration-api-report.xml -- -coverpkg=github.com/elastic/go-elasticsearch/esapi -coverprofile=/tmp/integration-api.cov -tags='integration' -timeout=1h ./...
       after_script:
-        - test -f /tmp/integration-api.cov && bash <(curl -s https://codecov.io/bash) -f /tmp/integration-api.cov
+        - test -f /tmp/integration-api.cov && bash <(curl -s https://codecov.io/bash) -f /tmp/integration-api.cov -c -F integration-api
 
 before_install:
     - GO111MODULE=off go get -u golang.org/x/lint/golint
