@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -93,26 +94,31 @@ func main() {
 		// -> Info
 		//
 		case <-tickers.Info.C:
-			// Create a transaction and span
-			// TODO(karmi): Shouldn't be needed?
-			tp := apm.DefaultTracer.StartTransaction("GET /", "request")
-			sp, ctx := apm.StartSpan(ctx, "Info", "elasticsearch")
+			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+			// Set up the APM transaction and put it into the context
+			tpx := apm.DefaultTracer.StartTransaction("Info()", "monitoring")
+			ctx := apm.ContextWithTransaction(ctx, tpx)
+			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 			res, err := es.Info(es.Info.WithContext(ctx))
 			if err != nil {
 				boldRed.Printf("Error getting response: %s\n", err)
-				apm.DefaultTracer.NewError(err).Send()
-			} else {
-				faint.Println(res.Status())
-				res.Body.Close()
+				apm.CaptureError(ctx, err).Send()
+				break
 			}
-			tp.End()
-			sp.End()
+
+			faint.Println(res.Status())
+			res.Body.Close()
+
+			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+			// Send the transaction to the APM server
+			tpx.End()
+			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 		// -> Index
 		//
 		case t := <-tickers.Index.C:
-			// Artificially fail some requests...
+			// Fail some requests with empty body...
 			var body io.Reader
 			if t.Second()%4 == 0 {
 				body = strings.NewReader(``)
@@ -120,31 +126,46 @@ func main() {
 				body = strings.NewReader(`{"timestamp":"` + t.Format(time.RFC3339) + `"}`)
 			}
 
+			tpx := apm.DefaultTracer.StartTransaction("Index()", "indexing")
+			ctx := apm.ContextWithTransaction(ctx, tpx)
+
 			res, err := es.Index("test", body, es.Index.WithContext(ctx))
 			if err != nil {
 				boldRed.Printf("Error getting response: %s\n", err)
-			} else {
-				faint.Println(res.Status())
-				res.Body.Close()
+				apm.CaptureError(ctx, err).Send()
+				break
 			}
+
+			faint.Println(res.Status())
+			res.Body.Close()
+			tpx.End()
 
 		// -> Health
 		//
 		case <-tickers.Health.C:
+			tpx := apm.DefaultTracer.StartTransaction("Cluster.Health()", "monitoring")
+			ctx := apm.ContextWithTransaction(ctx, tpx)
+
 			res, err := es.Cluster.Health(
 				es.Cluster.Health.WithLevel("indices"),
 				es.Cluster.Health.WithContext(ctx),
 			)
 			if err != nil {
 				boldRed.Printf("Error getting response: %s\n", err)
-			} else {
-				faint.Println(res.Status())
-				res.Body.Close()
+				apm.CaptureError(ctx, err).Send()
+				break
 			}
+
+			faint.Println(res.Status())
+			res.Body.Close()
+			tpx.End()
 
 		// -> Search
 		//
 		case <-tickers.Search.C:
+			tpx := apm.DefaultTracer.StartTransaction("Search()", "searching")
+			ctx := apm.ContextWithTransaction(ctx, tpx)
+
 			res, err := es.Search(
 				es.Search.WithIndex("test"),
 				es.Search.WithSort("timestamp:desc"),
@@ -153,10 +174,30 @@ func main() {
 			)
 			if err != nil {
 				boldRed.Printf("Error getting response: %s\n", err)
-			} else {
-				faint.Println(res.Status())
-				res.Body.Close()
+				apm.CaptureError(ctx, err).Send()
+				break
 			}
+
+			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+			// Create a custom span within the transaction
+			sp := tpx.StartSpan("JSON/Decode", "searching", nil)
+			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+			var r map[string]interface{}
+			if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+				sp.End()
+				boldRed.Printf("Error parsing the response body: %s\n", err)
+				apm.CaptureError(ctx, err).Send()
+				break
+			}
+			sp.End()
+
+			sp = tpx.StartSpan("UI/Render", "searching", nil)
+			faint.Printf("%s ; %vms\n", res.Status(), r["took"])
+			sp.End()
+
+			res.Body.Close()
+			tpx.End()
 		}
 	}
 }

@@ -55,7 +55,10 @@ services:
     image: docker.elastic.co/apm/apm-server:${VERSION:-7.0.0-beta1}
     container_name: apm_server
     networks: ['elasticstack']
-    command: --strict.perms=false -e -E output.elasticsearch.hosts=http://elasticsearch:9200 -E setup.kibana.host=http://kibana:5601
+    command: >
+      ./apm-server run -e \
+        -E output.elasticsearch.hosts=http://elasticsearch:9200 \
+        -E setup.kibana.host=http://kibana:5601
     expose:
       - "8200"
     depends_on: ['elasticsearch', 'kibana']
