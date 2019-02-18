@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -166,6 +168,14 @@ func main() {
 			tpx := apm.DefaultTracer.StartTransaction("Search()", "searching")
 			ctx := apm.ContextWithTransaction(ctx, tpx)
 
+			// Randomly trigger an error
+			if rand.Intn(10) > 8 {
+				err := errors.New("Custom error")
+				boldRed.Println("ERROR:", err)
+				apm.CaptureError(ctx, err).Send()
+				break
+			}
+
 			res, err := es.Search(
 				es.Search.WithIndex("test"),
 				es.Search.WithSort("timestamp:desc"),
@@ -192,7 +202,10 @@ func main() {
 			}
 			sp.End()
 
+			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+			// Create a custom span within the transaction
 			sp = tpx.StartSpan("UI/Render", "searching", nil)
+			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 			faint.Printf("%s ; %vms\n", res.Status(), r["took"])
 			sp.End()
 
