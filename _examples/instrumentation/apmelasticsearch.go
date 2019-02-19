@@ -33,7 +33,7 @@ var (
 	bold    = color.New(color.Bold)
 	boldRed = color.New(color.FgRed).Add(color.Bold)
 
-	username string
+	currentUser string
 )
 
 func init() {
@@ -43,9 +43,9 @@ func init() {
 
 	if u, err := user.Current(); err != nil {
 		boldRed.Printf("ERROR: %s\n", err)
-		username = "N/A"
+		currentUser = "N/A"
 	} else {
-		username = u.Username
+		currentUser = u.Username
 	}
 }
 
@@ -111,7 +111,7 @@ func main() {
 				// Set up the APM transaction
 				txn := apm.DefaultTracer.StartTransaction("Info()", "monitoring")
 				// Add current user to the transaction metadata
-				txn.Context.SetUsername(username)
+				txn.Context.SetUsername(currentUser)
 				// Store the transaction in context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
@@ -153,7 +153,7 @@ func main() {
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Index()", "indexing")
 				// Add current user to the transaction metadata
-				txn.Context.SetUsername(username)
+				txn.Context.SetUsername(currentUser)
 				// Store the transaction in context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
@@ -197,7 +197,7 @@ func main() {
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Cluster.Health()", "monitoring")
 				// Add current user to the transaction metadata
-				txn.Context.SetUsername(username)
+				txn.Context.SetUsername(currentUser)
 				// Store the transaction in context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
@@ -234,7 +234,7 @@ func main() {
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Search()", "searching")
 				// Add current user to the transaction metadata
-				txn.Context.SetUsername(username)
+				txn.Context.SetUsername(currentUser)
 				// Add a custom tag to the transaction metadata
 				txn.Context.SetTag("stat_group", "foo")
 				// Store the transaction in context
