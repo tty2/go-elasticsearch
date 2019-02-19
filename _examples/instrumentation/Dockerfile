@@ -3,14 +3,13 @@
 #
 FROM golang:1.11-alpine
 
-RUN apk add --no-cache --quiet ca-certificates make curl git jq
+RUN apk add --no-cache --quiet gcc g++ ca-certificates make curl git jq
 
 WORKDIR /go-elasticsearch-demo-instrumentation
 
 COPY ./go.mod ./
 RUN go mod download
 
-ENV CGO_ENABLED=0
 ENV TERM xterm-256color
 
 ENV ELASTICSEARCH_URL=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
