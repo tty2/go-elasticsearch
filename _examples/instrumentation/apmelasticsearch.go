@@ -101,7 +101,7 @@ func main() {
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Info()", "monitoring")
 				ctx := apm.ContextWithTransaction(ctx, txn)
-				// Send the transaction to the APM server
+				// Mark the transaction as completed
 				defer txn.End()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -140,7 +140,7 @@ func main() {
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Index()", "indexing")
 				ctx := apm.ContextWithTransaction(ctx, txn)
-				// Send the transaction to the APM server
+				// Mark the transaction as completed
 				defer txn.End()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -171,7 +171,7 @@ func main() {
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Cluster.Health()", "monitoring")
 				ctx := apm.ContextWithTransaction(ctx, txn)
-				// Send the transaction to the APM server
+				// Mark the transaction as completed
 				defer txn.End()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -205,7 +205,7 @@ func main() {
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Search()", "searching")
 				ctx := apm.ContextWithTransaction(ctx, txn)
-				// Send the transaction to the APM server
+				// Mark the transaction as completed
 				defer txn.End()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -254,7 +254,7 @@ func main() {
 					return
 				}
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Close the custom span
+				// Mark the span as completed
 				sp.End()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -264,7 +264,7 @@ func main() {
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 				faint.Printf("%s ; %vms\n", res.Status(), r["took"])
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Close the custom span
+				// Mark the span as completed
 				sp.End()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 			}()
