@@ -14,6 +14,6 @@ The [**`apmelasticsearch.go`**](./apmelasticsearch.go) example demonstrates inst
 
 ![Screenshot](screenshot.png)
 
-Run the example interactively with Docker and inspect the UI in <a href="http://localhost:5601/app/apm#/go-elasticsearch-demo-instrumentation/transactions?_g=(time:(from:now-5m,to:now))">Kibana</a>:
+Run the example interactively with Docker and inspect the UI in <a href="http://localhost:5601/app/apm#/go-elasticsearch-demo-instrumentation/transactions?_g=(time:(from:now-15m,to:now))">Kibana</a>:
 
     docker-compose --file elasticstack.yml up --build

@@ -116,6 +116,11 @@ func main() {
 				}
 				defer res.Body.Close()
 
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Add the HTTP status to the transaction
+				txn.Result = res.Status()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 				faint.Println(res.Status())
 			}()
 
@@ -150,6 +155,11 @@ func main() {
 				}
 				defer res.Body.Close()
 
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Add the HTTP status to the transaction
+				txn.Result = res.Status()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 				faint.Println(res.Status())
 			}(t)
 
@@ -178,6 +188,11 @@ func main() {
 					return
 				}
 				defer res.Body.Close()
+
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Add the HTTP status to the transaction
+				txn.Result = res.Status()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 				faint.Println(res.Status())
 			}()
@@ -220,6 +235,11 @@ func main() {
 					return
 				}
 				defer res.Body.Close()
+
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Add the HTTP status to the transaction
+				txn.Result = res.Status()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 				// Create a custom span within the transaction
