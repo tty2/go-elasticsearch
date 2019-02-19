@@ -96,121 +96,158 @@ func main() {
 		// -> Info
 		//
 		case <-tickers.Info.C:
-			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-			// Set up the APM transaction and put it into the context
-			tpx := apm.DefaultTracer.StartTransaction("Info()", "monitoring")
-			ctx := apm.ContextWithTransaction(ctx, tpx)
-			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+			func() {
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Set up the APM transaction and put it into the context
+				txn := apm.DefaultTracer.StartTransaction("Info()", "monitoring")
+				ctx := apm.ContextWithTransaction(ctx, txn)
+				// Send the transaction to the APM server
+				defer txn.End()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-			res, err := es.Info(es.Info.WithContext(ctx))
-			if err != nil {
-				boldRed.Printf("Error getting response: %s\n", err)
-				apm.CaptureError(ctx, err).Send()
-				break
-			}
+				res, err := es.Info(es.Info.WithContext(ctx))
+				if err != nil {
+					boldRed.Printf("Error getting response: %s\n", err)
+					// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+					// Capture the error
+					apm.CaptureError(ctx, err).Send()
+					// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+					return
+				}
+				defer res.Body.Close()
 
-			faint.Println(res.Status())
-			res.Body.Close()
-
-			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-			// Send the transaction to the APM server
-			tpx.End()
-			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+				faint.Println(res.Status())
+			}()
 
 		// -> Index
 		//
 		case t := <-tickers.Index.C:
-			// Fail some requests with empty body...
-			var body io.Reader
-			if t.Second()%4 == 0 {
-				body = strings.NewReader(``)
-			} else {
-				body = strings.NewReader(`{"timestamp":"` + t.Format(time.RFC3339) + `"}`)
-			}
+			func(t time.Time) {
+				// Fail some requests with empty body...
+				var body io.Reader
+				if t.Second()%4 == 0 {
+					body = strings.NewReader(``)
+				} else {
+					body = strings.NewReader(`{"timestamp":"` + t.Format(time.RFC3339) + `"}`)
+				}
 
-			tpx := apm.DefaultTracer.StartTransaction("Index()", "indexing")
-			ctx := apm.ContextWithTransaction(ctx, tpx)
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Set up the APM transaction and put it into the context
+				txn := apm.DefaultTracer.StartTransaction("Index()", "indexing")
+				ctx := apm.ContextWithTransaction(ctx, txn)
+				// Send the transaction to the APM server
+				defer txn.End()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-			res, err := es.Index("test", body, es.Index.WithContext(ctx))
-			if err != nil {
-				boldRed.Printf("Error getting response: %s\n", err)
-				apm.CaptureError(ctx, err).Send()
-				break
-			}
+				res, err := es.Index("test", body, es.Index.WithContext(ctx))
+				if err != nil {
+					boldRed.Printf("Error getting response: %s\n", err)
+					// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+					// Capture the error
+					apm.CaptureError(ctx, err).Send()
+					// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+					return
+				}
+				defer res.Body.Close()
 
-			faint.Println(res.Status())
-			res.Body.Close()
-			tpx.End()
+				faint.Println(res.Status())
+			}(t)
 
 		// -> Health
 		//
 		case <-tickers.Health.C:
-			tpx := apm.DefaultTracer.StartTransaction("Cluster.Health()", "monitoring")
-			ctx := apm.ContextWithTransaction(ctx, tpx)
+			func() {
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Set up the APM transaction and put it into the context
+				txn := apm.DefaultTracer.StartTransaction("Cluster.Health()", "monitoring")
+				ctx := apm.ContextWithTransaction(ctx, txn)
+				// Send the transaction to the APM server
+				defer txn.End()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-			res, err := es.Cluster.Health(
-				es.Cluster.Health.WithLevel("indices"),
-				es.Cluster.Health.WithContext(ctx),
-			)
-			if err != nil {
-				boldRed.Printf("Error getting response: %s\n", err)
-				apm.CaptureError(ctx, err).Send()
-				break
-			}
+				res, err := es.Cluster.Health(
+					es.Cluster.Health.WithLevel("indices"),
+					es.Cluster.Health.WithContext(ctx),
+				)
+				if err != nil {
+					boldRed.Printf("Error getting response: %s\n", err)
+					// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+					// Capture the error
+					apm.CaptureError(ctx, err).Send()
+					// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+					return
+				}
+				defer res.Body.Close()
 
-			faint.Println(res.Status())
-			res.Body.Close()
-			tpx.End()
+				faint.Println(res.Status())
+			}()
 
 		// -> Search
 		//
 		case <-tickers.Search.C:
-			tpx := apm.DefaultTracer.StartTransaction("Search()", "searching")
-			ctx := apm.ContextWithTransaction(ctx, tpx)
+			func() {
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Set up the APM transaction and put it into the context
+				txn := apm.DefaultTracer.StartTransaction("Search()", "searching")
+				ctx := apm.ContextWithTransaction(ctx, txn)
+				// Send the transaction to the APM server
+				defer txn.End()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-			// Randomly trigger an error
-			if rand.Intn(10) > 8 {
-				err := errors.New("Custom error")
-				boldRed.Println("ERROR:", err)
-				apm.CaptureError(ctx, err).Send()
-				break
-			}
+				// Randomly trigger an error
+				if rand.Intn(10) > 8 {
+					err := errors.New("Custom error")
+					boldRed.Println("ERROR:", err)
+					// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+					// Capture the error
+					apm.CaptureError(ctx, err).Send()
+					// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+					return
+				}
 
-			res, err := es.Search(
-				es.Search.WithIndex("test"),
-				es.Search.WithSort("timestamp:desc"),
-				es.Search.WithSize(1),
-				es.Search.WithContext(ctx),
-			)
-			if err != nil {
-				boldRed.Printf("Error getting response: %s\n", err)
-				apm.CaptureError(ctx, err).Send()
-				break
-			}
+				res, err := es.Search(
+					es.Search.WithIndex("test"),
+					es.Search.WithSort("timestamp:desc"),
+					es.Search.WithSize(1),
+					es.Search.WithContext(ctx),
+				)
+				if err != nil {
+					boldRed.Printf("Error getting response: %s\n", err)
+					// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+					// Capture the error
+					apm.CaptureError(ctx, err).Send()
+					// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+					return
+				}
+				defer res.Body.Close()
 
-			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-			// Create a custom span within the transaction
-			sp := tpx.StartSpan("JSON/Decode", "searching", nil)
-			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Create a custom span within the transaction
+				sp := txn.StartSpan("JSON/Decode", "searching", nil)
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-			var r map[string]interface{}
-			if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+				var r map[string]interface{}
+				if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+					sp.End()
+					boldRed.Printf("Error parsing the response body: %s\n", err)
+					apm.CaptureError(ctx, err).Send()
+					return
+				}
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Close the custom span
 				sp.End()
-				boldRed.Printf("Error parsing the response body: %s\n", err)
-				apm.CaptureError(ctx, err).Send()
-				break
-			}
-			sp.End()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-			// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-			// Create a custom span within the transaction
-			sp = tpx.StartSpan("UI/Render", "searching", nil)
-			// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-			faint.Printf("%s ; %vms\n", res.Status(), r["took"])
-			sp.End()
-
-			res.Body.Close()
-			tpx.End()
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Create a custom span within the transaction
+				sp = txn.StartSpan("UI/Render", "searching", nil)
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+				faint.Printf("%s ; %vms\n", res.Status(), r["took"])
+				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+				// Close the custom span
+				sp.End()
+				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+			}()
 		}
 	}
 }
