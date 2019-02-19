@@ -6,7 +6,7 @@ This example demonstrates how to instrument the Elasticsearch client.
 
 The [**`opencensus.go`**](./opencensus.go) example uses the [`ochttp.Transport`](https://godoc.org/go.opencensus.io/plugin/ochttp#example-Transport) wrapper to auto-instrument the client calls, and provides a simple exporter which prints information to the terminal.
 
-<a href="https://asciinema.org/a/KhyP3GuuHPJAZQAmrgmdwS7uf" target="_blank"><img src="https://asciinema.org/a/KhyP3GuuHPJAZQAmrgmdwS7uf.svg" width="600" /></a>
+<a href="https://asciinema.org/a/KhyP3GuuHPJAZQAmrgmdwS7uf" target="_blank"><img src="https://asciinema.org/a/KhyP3GuuHPJAZQAmrgmdwS7uf.svg" style="margin: 2em auto; display: block; box-shadow: 0px 3px 10px 0px rgba(0,0,0,0.75); border-radius: 7px; max-width: 780px" /></a>
 
 ### Elastic APM
 
