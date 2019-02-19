@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"os/user"
 	"strings"
 	"time"
 
@@ -31,11 +32,20 @@ var (
 	faint   = color.New(color.Faint)
 	bold    = color.New(color.Bold)
 	boldRed = color.New(color.FgRed).Add(color.Bold)
+
+	username string
 )
 
 func init() {
 	if tWidth < 0 {
 		tWidth = 0
+	}
+
+	if u, err := user.Current(); err != nil {
+		boldRed.Printf("ERROR: %s\n", err)
+		username = "N/A"
+	} else {
+		username = u.Username
 	}
 }
 
@@ -98,8 +108,11 @@ func main() {
 		case <-tickers.Info.C:
 			func() {
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Set up the APM transaction and put it into the context
+				// Set up the APM transaction
 				txn := apm.DefaultTracer.StartTransaction("Info()", "monitoring")
+				// Add current user to the transaction metadata
+				txn.Context.SetUsername(username)
+				// Store the transaction in context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
 				defer txn.End()
@@ -117,7 +130,7 @@ func main() {
 				defer res.Body.Close()
 
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Add the HTTP status to the transaction
+				// Set the response status as transaction result
 				txn.Result = res.Status()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -139,6 +152,9 @@ func main() {
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Index()", "indexing")
+				// Add current user to the transaction metadata
+				txn.Context.SetUsername(username)
+				// Store the transaction in context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
 				defer txn.End()
@@ -155,8 +171,18 @@ func main() {
 				}
 				defer res.Body.Close()
 
+				if res.IsError() {
+					// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+					// Log an error response
+					e := apm.DefaultTracer.NewErrorLog(apm.ErrorLogRecord{Message: "Error indexing document"})
+					e.SetTransaction(txn)
+					e.SetStacktrace(0)
+					e.Send()
+					// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+				}
+
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Add the HTTP status to the transaction
+				// Set the response status as transaction result
 				txn.Result = res.Status()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -170,6 +196,9 @@ func main() {
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Cluster.Health()", "monitoring")
+				// Add current user to the transaction metadata
+				txn.Context.SetUsername(username)
+				// Store the transaction in context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
 				defer txn.End()
@@ -190,7 +219,7 @@ func main() {
 				defer res.Body.Close()
 
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Add the HTTP status to the transaction
+				// Set the response status as transaction result
 				txn.Result = res.Status()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -204,6 +233,11 @@ func main() {
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 				// Set up the APM transaction and put it into the context
 				txn := apm.DefaultTracer.StartTransaction("Search()", "searching")
+				// Add current user to the transaction metadata
+				txn.Context.SetUsername(username)
+				// Add a custom tag to the transaction metadata
+				txn.Context.SetTag("stat_group", "foo")
+				// Store the transaction in context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
 				defer txn.End()
@@ -211,7 +245,7 @@ func main() {
 
 				// Randomly trigger an error
 				if rand.Intn(10) > 8 {
-					err := errors.New("Custom error")
+					err := errors.New("Unexpected error")
 					boldRed.Println("ERROR:", err)
 					// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 					// Capture the error
@@ -224,6 +258,8 @@ func main() {
 					es.Search.WithIndex("test"),
 					es.Search.WithSort("timestamp:desc"),
 					es.Search.WithSize(1),
+					// Annotate this search request; https://www.elastic.co/guide/en/elasticsearch/reference/current/search.html#stats-groups
+					es.Search.WithStats("foo"),
 					es.Search.WithContext(ctx),
 				)
 				if err != nil {
@@ -237,7 +273,7 @@ func main() {
 				defer res.Body.Close()
 
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Add the HTTP status to the transaction
+				// Set the response status as transaction result
 				txn.Result = res.Status()
 				// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
