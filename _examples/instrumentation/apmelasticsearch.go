@@ -171,16 +171,6 @@ func main() {
 				}
 				defer res.Body.Close()
 
-				if res.IsError() {
-					// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-					// Log an error response
-					e := apm.DefaultTracer.NewErrorLog(apm.ErrorLogRecord{Message: "Error indexing document"})
-					e.SetTransaction(txn)
-					e.SetStacktrace(0)
-					e.Send()
-					// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-				}
-
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 				// Set the response status as transaction result
 				txn.Result = res.Status()
