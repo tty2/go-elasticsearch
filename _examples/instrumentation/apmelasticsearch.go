@@ -112,7 +112,7 @@ func main() {
 				txn := apm.DefaultTracer.StartTransaction("Info()", "monitoring")
 				// Add current user to the transaction metadata
 				txn.Context.SetUsername(currentUser)
-				// Store the transaction in context
+				// Store the transaction in a context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
 				defer txn.End()
@@ -150,11 +150,11 @@ func main() {
 				}
 
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Set up the APM transaction and put it into the context
+				// Set up the APM transaction
 				txn := apm.DefaultTracer.StartTransaction("Index()", "indexing")
 				// Add current user to the transaction metadata
 				txn.Context.SetUsername(currentUser)
-				// Store the transaction in context
+				// Store the transaction in a context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
 				defer txn.End()
@@ -184,11 +184,11 @@ func main() {
 		case <-tickers.Health.C:
 			func() {
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Set up the APM transaction and put it into the context
+				// Set up the APM transaction
 				txn := apm.DefaultTracer.StartTransaction("Cluster.Health()", "monitoring")
 				// Add current user to the transaction metadata
 				txn.Context.SetUsername(currentUser)
-				// Store the transaction in context
+				// Store the transaction in a context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
 				defer txn.End()
@@ -221,13 +221,13 @@ func main() {
 		case <-tickers.Search.C:
 			func() {
 				// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-				// Set up the APM transaction and put it into the context
+				// Set up the APM transaction
 				txn := apm.DefaultTracer.StartTransaction("Search()", "searching")
 				// Add current user to the transaction metadata
 				txn.Context.SetUsername(currentUser)
 				// Add a custom tag to the transaction metadata
 				txn.Context.SetTag("stat_group", "foo")
-				// Store the transaction in context
+				// Store the transaction in a context
 				ctx := apm.ContextWithTransaction(ctx, txn)
 				// Mark the transaction as completed
 				defer txn.End()

@@ -45,6 +45,7 @@ func init() {
 type ConsoleExporter struct{}
 
 // ExportView prints the stats.
+//
 func (e *ConsoleExporter) ExportView(vd *view.Data) {
 	fmt.Println(strings.Repeat("─", tWidth))
 	for _, row := range vd.Rows {
@@ -71,6 +72,7 @@ func (e *ConsoleExporter) ExportView(vd *view.Data) {
 }
 
 // ExportSpan prints the traces.
+//
 func (e *ConsoleExporter) ExportSpan(sd *trace.SpanData) {
 	var c *color.Color
 	if sd.Status.Code > 0 {
