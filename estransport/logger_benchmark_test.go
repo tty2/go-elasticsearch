@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 // +build !integration
 
 package estransport_test
@@ -17,8 +21,8 @@ func BenchmarkTransportLogger(b *testing.B) {
 
 	b.Run("Text", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			tp := estransport.New(estransport.Config{
-				URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+			tp, _ := estransport.New(estransport.Config{
+				URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 				Transport: newFakeTransport(b),
 				Logger:    &estransport.TextLogger{Output: ioutil.Discard},
 			})
@@ -33,8 +37,8 @@ func BenchmarkTransportLogger(b *testing.B) {
 
 	b.Run("Text-Body", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			tp := estransport.New(estransport.Config{
-				URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+			tp, _ := estransport.New(estransport.Config{
+				URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 				Transport: newFakeTransport(b),
 				Logger:    &estransport.TextLogger{Output: ioutil.Discard, EnableRequestBody: true, EnableResponseBody: true},
 			})
@@ -58,8 +62,8 @@ func BenchmarkTransportLogger(b *testing.B) {
 
 	b.Run("JSON", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			tp := estransport.New(estransport.Config{
-				URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+			tp, _ := estransport.New(estransport.Config{
+				URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 				Transport: newFakeTransport(b),
 				Logger:    &estransport.JSONLogger{Output: ioutil.Discard},
 			})
@@ -74,8 +78,8 @@ func BenchmarkTransportLogger(b *testing.B) {
 
 	b.Run("JSON-Body", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			tp := estransport.New(estransport.Config{
-				URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+			tp, _ := estransport.New(estransport.Config{
+				URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 				Transport: newFakeTransport(b),
 				Logger:    &estransport.JSONLogger{Output: ioutil.Discard, EnableRequestBody: true, EnableResponseBody: true},
 			})

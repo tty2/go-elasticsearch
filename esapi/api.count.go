@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -23,16 +28,16 @@ func newCountFunc(t Transport) Count {
 
 // Count returns number of documents matching a query.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html.
 //
 type Count func(o ...func(*CountRequest)) (*Response, error)
 
 // CountRequest configures the Count API request.
 //
 type CountRequest struct {
-	Index        []string
-	DocumentType []string
-	Body         io.Reader
+	Index []string
+
+	Body io.Reader
 
 	AllowNoIndices    *bool
 	Analyzer          string
@@ -54,6 +59,8 @@ type CountRequest struct {
 	ErrorTrace bool
 	FilterPath []string
 
+	Header http.Header
+
 	ctx context.Context
 }
 
@@ -68,14 +75,10 @@ func (r CountRequest) Do(ctx context.Context, transport Transport) (*Response, e
 
 	method = "POST"
 
-	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len(strings.Join(r.DocumentType, ",")) + 1 + len("_count"))
+	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len("_count"))
 	if len(r.Index) > 0 {
 		path.WriteString("/")
 		path.WriteString(strings.Join(r.Index, ","))
-	}
-	if len(r.DocumentType) > 0 {
-		path.WriteString("/")
-		path.WriteString(strings.Join(r.DocumentType, ","))
 	}
 	path.WriteString("/")
 	path.WriteString("_count")
@@ -154,7 +157,10 @@ func (r CountRequest) Do(ctx context.Context, transport Transport) (*Response, e
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -166,6 +172,18 @@ func (r CountRequest) Do(ctx context.Context, transport Transport) (*Response, e
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -194,27 +212,19 @@ func (f Count) WithContext(v context.Context) func(*CountRequest) {
 	}
 }
 
-// WithIndex - a list of indices to restrict the results.
-//
-func (f Count) WithIndex(v ...string) func(*CountRequest) {
-	return func(r *CountRequest) {
-		r.Index = v
-	}
-}
-
-// WithDocumentType - a list of types to restrict the results.
-//
-func (f Count) WithDocumentType(v ...string) func(*CountRequest) {
-	return func(r *CountRequest) {
-		r.DocumentType = v
-	}
-}
-
 // WithBody - A query to restrict the results specified with the Query DSL (optional).
 //
 func (f Count) WithBody(v io.Reader) func(*CountRequest) {
 	return func(r *CountRequest) {
 		r.Body = v
+	}
+}
+
+// WithIndex - a list of indices to restrict the results.
+//
+func (f Count) WithIndex(v ...string) func(*CountRequest) {
+	return func(r *CountRequest) {
+		r.Index = v
 	}
 }
 
@@ -359,5 +369,29 @@ func (f Count) WithErrorTrace() func(*CountRequest) {
 func (f Count) WithFilterPath(v ...string) func(*CountRequest) {
 	return func(r *CountRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Count) WithHeader(h map[string]string) func(*CountRequest) {
+	return func(r *CountRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Count) WithOpaqueID(s string) func(*CountRequest) {
+	return func(r *CountRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

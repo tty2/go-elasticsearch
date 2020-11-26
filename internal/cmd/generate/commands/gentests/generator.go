@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 package gentests
 
 import (
@@ -37,50 +41,63 @@ type Generator struct {
 // Output returns the generator output.
 //
 func (g *Generator) Output() (io.Reader, error) {
+	name := g.TestSuite.Name()
+	if g.TestSuite.Type == "xpack" {
+		name = "XPack_" + name
+	}
+
 	g.genFileHeader()
-	g.w("func Test" + g.TestSuite.Name() + "(t *testing.T) {\n")
+	g.w("func Test" + name + "(t *testing.T) {\n")
 	g.genInitializeClient()
 	g.genHelpers()
 	g.genCommonSetup()
+	if g.TestSuite.Type == "xpack" {
+		g.genXPackSetup()
+	}
 	if len(g.TestSuite.Setup) > 0 {
 		g.w("// ----- Test Suite Setup --------------------------------------------------------\n")
 		g.w("testSuiteSetup := func() {\n")
 		g.genSetupTeardown(g.TestSuite.Setup)
 		g.w("}\n")
+		g.w("_ = testSuiteSetup\n")
 		g.w("// --------------------------------------------------------------------------------\n")
 		g.w("\n")
 	}
 	if len(g.TestSuite.Teardown) > 0 {
 		g.w("\t// Teardown\n")
-		g.w("\tdefer func() {\n")
+		g.w("\tdefer func(t *testing.T) {\n")
 		g.genSetupTeardown(g.TestSuite.Teardown)
-		g.w("\t}()\n")
+		g.w("\t}(t)\n")
 	}
 	for i, t := range g.TestSuite.Tests {
 		g.w("\n")
 		g.genLocationYAML(t)
-		g.w("\t" + `t.Run("` + strings.Title(t.Name) + `", ` + "func(t *testing.T) {\n")
-		g.genSkip(t)
-		g.w("\tdefer recoverPanic(t)\n")
-		g.w("\tcommonSetup()\n")
-		if len(g.TestSuite.Setup) > 0 {
-			g.w("\ttestSuiteSetup()\n")
-		}
-		g.w("\n")
-		if len(t.Setup) > 0 {
-			g.w("\t// Test setup\n")
-			g.genSetupTeardown(t.Setup)
-		}
-		if len(t.Teardown) > 0 {
-			g.w("\t// Test teardown\n")
-			g.w("\tdefer func() {\n")
-			g.genSetupTeardown(t.Teardown)
-			g.w("\t}()\n")
-		}
-		if len(t.Setup) > 0 || len(t.Teardown) > 0 {
+		g.w("\t" + `t.Run("` + strings.ReplaceAll(t.Name, " ", "_") + `", ` + "func(t *testing.T) {\n")
+		if !g.genSkip(t) {
+			g.w("\tdefer recoverPanic(t)\n")
+			g.w("\tcommonSetup()\n")
+			if g.TestSuite.Type == "xpack" {
+				g.w("\txpackSetup()\n")
+			}
+			if len(g.TestSuite.Setup) > 0 {
+				g.w("\ttestSuiteSetup()\n")
+			}
 			g.w("\n")
+			if len(t.Setup) > 0 {
+				g.w("\t// Test setup\n")
+				g.genSetupTeardown(t.Setup)
+			}
+			if len(t.Teardown) > 0 {
+				g.w("\t// Test teardown\n")
+				g.w("\tdefer func(t) {\n")
+				g.genSetupTeardown(t.Teardown)
+				g.w("\t}(t *testing.T)\n")
+			}
+			if len(t.Setup) > 0 || len(t.Teardown) > 0 {
+				g.w("\n")
+			}
+			g.genSteps(t)
 		}
-		g.genSteps(t)
 		g.w("\t})\n")
 		if i < len(g.TestSuite.Tests)-1 {
 			g.w("\n")
@@ -182,22 +199,54 @@ func (g *Generator) genFileHeader() {
 import (
 	encjson "encoding/json"
 	encyaml "gopkg.in/yaml.v2"
+	"fmt"
+	"context"
+	"crypto/tls"
+	"os"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
+	"github.com/elastic/go-elasticsearch/v8/estransport"
 )
 
 var (
 	// Prevent compilation errors for unused packages
+	_ = fmt.Printf
 	_ = encjson.NewDecoder
 	_ = encyaml.NewDecoder
-	_ = fmt.Printf
+	_ = tls.Certificate{}
+	_ = url.QueryEscape
 )` + "\n")
 }
 
 func (g *Generator) genInitializeClient() {
-	g.w(`	es, eserr := elasticsearch.NewDefaultClient()
+	g.w(`
+	cfg := elasticsearch.Config{}
+	`)
+
+	if g.TestSuite.Type == "xpack" {
+		g.w(`
+	cfg.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}` + "\n")
+	}
+
+	g.w(`
+			if os.Getenv("DEBUG") != "" {
+				cfg.Logger = &estransport.ColorLogger{
+					Output: os.Stdout,
+					// EnableRequestBody:  true,
+					EnableResponseBody: true,
+				}
+			}` + "\n")
+
+	g.w(`
+	es, eserr := elasticsearch.NewClient(cfg)
 	if eserr != nil {
 		t.Fatalf("Error creating the client: %s\n", eserr)
 	}
@@ -220,19 +269,22 @@ func (g *Generator) genHelpers() {
 		t.Fatalf("Panic: %s in %s", rec, reLocation.ReplaceAllString(loc, "$1"))
 	}
 }
+_ = recoverPanic
 ` + "\n")
 
-	g.w(`debug := func(v interface{}) {
-		if os.Getenv("DEBUG") != "" {
-			t.Logf("%s", v)
-		}
-	}
-`)
 	g.w(`
 	handleResponseError := func(t *testing.T, res *esapi.Response) {
 		if res.IsError() {
-			t.Logf("Response error: %s", res)
-			// t.Fatalf("Response error: %s", res.Status())
+			reLocation := regexp.MustCompile("(.*_test.go:\\d+).*")
+			var loc string
+			s := strings.Split(string(debug.Stack()), "\n")
+			for i := len(s) - 1; i >= 0; i-- {
+				if reLocation.MatchString(s[i]) {
+					loc = strings.TrimSpace(s[i])
+					break
+				}
+			}
+			t.Logf("Response error: %s in %s", res, reLocation.ReplaceAllString(loc, "$1"))
 		}
 	}
 	_ = handleResponseError
@@ -240,37 +292,357 @@ func (g *Generator) genHelpers() {
 	g.w("\n\n")
 }
 
+// Reference: https://github.com/elastic/elasticsearch/blob/master/test/framework/src/main/java/org/elasticsearch/test/rest/ESRestTestCase.java
+//
 func (g *Generator) genCommonSetup() {
-	// TODO: Full setup
-	// https://github.com/elastic/elasticsearch-ruby/blob/master/elasticsearch-api/test/integration/yaml_test_runner.rb
 	g.w(`
 	// ----- Common Setup -------------------------------------------------------------
 	commonSetup := func() {
 		var res *esapi.Response
-		res, _ = es.Indices.Delete([]string{"_all"})
-		res.Body.Close()
 
-		res, _ = es.Indices.DeleteTemplate("*")
-		res.Body.Close()
+		{
+			res, _ = es.Cluster.Health(es.Cluster.Health.WithWaitForNoInitializingShards(true))
+			if res != nil && res.Body != nil {
+				defer res.Body.Close()
+			}
+		}
 
-		res, _ = es.Indices.DeleteAlias([]string{"_all"}, []string{"_all"})
-		res.Body.Close()
+		{
+			res, _ = es.Indices.Delete(
+				[]string{"*"},
+				es.Indices.Delete.WithExpandWildcards("all"))
+			if res != nil && res.Body != nil {
+				defer res.Body.Close()
+			}
+		}
 
-		res, _ = es.Snapshot.Delete("test_repo_create_1", "test_snapshot")
-		res.Body.Close()
-		res, _ = es.Snapshot.Delete("test_repo_restore_1", "test_snapshot")
-		res.Body.Close()
-		res, _ = es.Snapshot.Delete("test_cat_snapshots_1", "snap1")
-		res.Body.Close()
-		res, _ = es.Snapshot.Delete("test_cat_snapshots_1", "snap2")
-		res.Body.Close()
-		for _, n := range []string{"test_repo_create_1", "test_repo_restore_1", "test_repo_get_1", "test_repo_get_2", "test_repo_status_1", "test_cat_repo_1", "test_cat_repo_2", "test_cat_snapshots_1"} {
-			res, _ = es.Snapshot.DeleteRepository([]string{n})
-			res.Body.Close()
+		{
+			var r map[string]interface{}
+			res, _ = es.Indices.GetTemplate()
+			if res != nil && res.Body != nil {
+				defer res.Body.Close()
+				json.NewDecoder(res.Body).Decode(&r)
+				for templateName, _ := range r {
+					if strings.HasPrefix(templateName, ".") {
+						continue
+					}
+					if templateName == "security_audit_log" {
+						continue
+					}
+					if templateName == "logstash-index-template" {
+						continue
+					}
+					es.Indices.DeleteTemplate(templateName)
+				}
+			}
+		}
+
+		{
+			res, _ = es.Indices.DeleteIndexTemplate("*")
+			if res != nil && res.Body != nil { defer res.Body.Close() }
+		}
+
+		{
+			res, _ = es.Indices.DeleteAlias([]string{"_all"}, []string{"_all"})
+			if res != nil && res.Body != nil { defer res.Body.Close() }
+		}
+
+		{
+			var r map[string]interface{}
+			res, _ = es.Snapshot.GetRepository()
+			if res != nil && res.Body != nil {
+				defer res.Body.Close()
+				json.NewDecoder(res.Body).Decode(&r)
+				for repositoryID, _ := range r {
+					var r map[string]interface{}
+					res, _ = es.Snapshot.Get(repositoryID, []string{"_all"})
+					json.NewDecoder(res.Body).Decode(&r)
+					if r["responses"] != nil {
+						for _, vv := range r["responses"].([]interface{}) {
+							for _, v := range vv.(map[string]interface{})["snapshots"].([]interface{}) {
+								snapshotID, ok := v.(map[string]interface{})["snapshot"]
+								if !ok {
+									continue
+								}
+								es.Snapshot.Delete(repositoryID, []string{fmt.Sprintf("%s", snapshotID)})
+							}
+						}
+					}
+					es.Snapshot.DeleteRepository([]string{fmt.Sprintf("%s", repositoryID)})
+				}
+			}
+		}
+
+		{
+			res, _ = es.Cluster.Health(es.Cluster.Health.WithWaitForStatus("yellow"))
+			if res != nil && res.Body != nil {
+				defer res.Body.Close()
+			}
 		}
 	}
-	commonSetup()
-	// --------------------------------------------------------------------------------
+	_ = commonSetup
+
+	`)
+}
+
+// Reference: https://github.com/elastic/elasticsearch/blob/master/x-pack/plugin/src/test/java/org/elasticsearch/xpack/test/rest/XPackRestIT.java
+// Reference: https://github.com/elastic/elasticsearch/blob/master/x-pack/plugin/core/src/test/java/org/elasticsearch/xpack/core/ml/integration/MlRestTestStateCleaner.java
+//
+func (g *Generator) genXPackSetup() {
+	g.w(`
+		// ----- XPack Setup -------------------------------------------------------------
+		xpackSetup := func() {
+			var res *esapi.Response
+
+			{
+				res, _ = es.Indices.DeleteDataStream([]string{"*"})
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				res, _ = es.Indices.GetTemplate()
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for templateName, _ := range r {
+						if strings.HasPrefix(templateName, ".") {
+							continue
+						}
+						es.Indices.DeleteTemplate(templateName)
+					}
+				}
+			}
+
+			{
+				res, _ = es.Watcher.DeleteWatch("my_watch")
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				res, _ = es.Security.GetRole()
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for k, v := range r {
+						reserved, ok := v.(map[string]interface{})["metadata"].(map[string]interface{})["_reserved"].(bool)
+						if ok && reserved {
+							continue
+						}
+						es.Security.DeleteRole(k)
+					}
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				res, _ = es.Security.GetUser()
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for k, v := range r {
+						reserved, ok := v.(map[string]interface{})["metadata"].(map[string]interface{})["_reserved"].(bool)
+						if ok && reserved {
+							continue
+						}
+						es.Security.DeleteUser(k)
+					}
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				res, _ = es.Security.GetPrivileges()
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for k, v := range r {
+						reserved, ok := v.(map[string]interface{})["metadata"].(map[string]interface{})["_reserved"].(bool)
+						if ok && reserved {
+							continue
+						}
+						es.Security.DeletePrivileges(k, "_all")
+					}
+				}
+			}
+
+			{
+				res, _ = es.Indices.Refresh(
+					es.Indices.Refresh.WithIndex("_all"),
+					es.Indices.Refresh.WithExpandWildcards("open,closed,hidden"))
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				es.ML.StopDatafeed("_all", es.ML.StopDatafeed.WithContext(ctx))
+				res, _ = es.ML.GetDatafeeds()
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for _, v := range r["datafeeds"].([]interface{}) {
+						datafeed, ok := v.(map[string]interface{})
+						if ok {
+							datafeedID := datafeed["datafeed_id"].(string)
+							es.ML.DeleteDatafeed(datafeedID)
+						}
+					}
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				es.ML.CloseJob("_all", es.ML.CloseJob.WithContext(ctx))
+				res, _ = es.ML.GetJobs()
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for _, v := range r["jobs"].([]interface{}) {
+						job, ok := v.(map[string]interface{})
+						if ok {
+							jobID := job["job_id"].(string)
+							es.ML.DeleteJob(jobID)
+						}
+					}
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				res, _ = es.Rollup.GetJobs(es.Rollup.GetJobs.WithJobID("_all"))
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for _, v := range r["jobs"].([]interface{}) {
+						job, ok := v.(map[string]interface{})["config"]
+						if ok {
+							jobID := job.(map[string]interface{})["id"].(string)
+							es.Rollup.StopJob(jobID, es.Rollup.StopJob.WithWaitForCompletion(true))
+							es.Rollup.DeleteJob(jobID)
+						}
+					}
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				res, _ = es.Tasks.List()
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for _, vv := range r["nodes"].(map[string]interface{}) {
+						for _, v := range vv.(map[string]interface{})["tasks"].(map[string]interface{}) {
+							cancellable, ok := v.(map[string]interface{})["cancellable"]
+							if ok && cancellable.(bool) {
+								taskID := fmt.Sprintf("%v:%v", v.(map[string]interface{})["node"], v.(map[string]interface{})["id"])
+								ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+								defer cancel()
+								es.Tasks.Cancel(es.Tasks.Cancel.WithTaskID(taskID), es.Tasks.Cancel.WithContext(ctx))
+							}
+						}
+					}
+				}
+			}
+
+			{
+				var r map[string]interface{}
+				res, _ = es.Snapshot.GetRepository()
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+					json.NewDecoder(res.Body).Decode(&r)
+					for repositoryID, _ := range r {
+						var r map[string]interface{}
+						res, _ = es.Snapshot.Get(repositoryID, []string{"_all"})
+						json.NewDecoder(res.Body).Decode(&r)
+						for _, vv := range r["responses"].([]interface{}) {
+							for _, v := range vv.(map[string]interface{})["snapshots"].([]interface{}) {
+								snapshotID, ok := v.(map[string]interface{})["snapshot"]
+								if ok {
+									es.Snapshot.Delete(repositoryID, []string{fmt.Sprintf("%s", snapshotID)})
+								}
+							}
+						}
+						es.Snapshot.DeleteRepository([]string{fmt.Sprintf("%s", repositoryID)})
+					}
+				}
+			}
+
+			{
+				res, _ = es.Indices.Delete([]string{".ml*"})
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				res, _ = es.ILM.RemovePolicy("_all")
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				res, _ = es.Cluster.Health(es.Cluster.Health.WithWaitForStatus("yellow"))
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				res, _ = es.Security.PutUser("x_pack_rest_user", strings.NewReader(` + "`" + `{"password":"x-pack-test-password", "roles":["superuser"]}` + "`" + `), es.Security.PutUser.WithPretty())
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				res, _ = es.Indices.Refresh(
+					es.Indices.Refresh.WithIndex("_all"),
+					es.Indices.Refresh.WithExpandWildcards("open,closed,hidden"))
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				res, _ = es.Cluster.Health(es.Cluster.Health.WithWaitForStatus("yellow"))
+				if res != nil && res.Body != nil {
+					defer res.Body.Close()
+				}
+			}
+
+			{
+				var i int
+				for {
+					i++
+					var r map[string]interface{}
+					res, _ = es.Cluster.PendingTasks()
+					if res != nil && res.Body != nil {
+						defer res.Body.Close()
+						json.NewDecoder(res.Body).Decode(&r)
+						if len(r["tasks"].([]interface{})) < 1 {
+							break
+						}
+					}
+					if i > 30 {
+						break
+					}
+					time.Sleep(time.Second)
+				}
+			}
+		}
+		_ = xpackSetup
 
 	`)
 }
@@ -301,18 +673,19 @@ func (g *Generator) genLocationYAML(t Test) {
 	}
 }
 
-func (g *Generator) genSkip(t Test) {
+func (g *Generator) genSkip(t Test) (skipped bool) {
 	// Check the custom skip list
 	if skips, ok := skipTests[t.BaseFilename()]; ok {
 		if len(skips) < 1 {
 			g.w("\t// Skipping all tests in '" + t.BaseFilename() + "'\n")
 			g.w("\tt.SkipNow()\n\n")
-			return
+			return true
 		}
 
 		for _, skip := range skips {
 			if skip == t.OrigName {
 				g.w("\tt.SkipNow()\n\n")
+				return true
 			}
 		}
 	}
@@ -321,10 +694,14 @@ func (g *Generator) genSkip(t Test) {
 	if t.Skip {
 		if t.SkipInfo != "" {
 			g.w("\tt.Skip(" + strconv.Quote(t.SkipInfo) + ")\n\n")
+			return true
 		} else {
 			g.w("\tt.SkipNow()\n\n")
+			return true
 		}
 	}
+
+	return false
 }
 
 func (g *Generator) genSetupTeardown(actions []Action) {
@@ -424,7 +801,7 @@ func (g *Generator) genVarSection(t Test, skipBody ...bool) {
 		g.w("\t\t_ = mapi\n")
 		g.w("\t\t_ = slic\n")
 		g.w("\n")
-		g.w(`handleResponseBody := func(res *esapi.Response) {
+		g.w(`handleResponseBody := func(t *testing.T, res *esapi.Response) {
 			// Reset deserialized structures
 			mapi = make(map[string]interface{})
 			slic = make([]interface{}, 0)
@@ -507,7 +884,7 @@ func (g *Generator) genAction(a Action, skipBody ...bool) {
 		// fmt.Printf("%s.%s: <%T> %v\n", a.Request(), k, v, v)
 
 		if strings.HasPrefix(fmt.Sprintf("%s", v), "$") {
-			v = `stash[` + strconv.Quote(fmt.Sprintf("%s", v)) + `]`
+			v = `stash[` + strconv.Quote(strings.ReplaceAll(strings.ReplaceAll(fmt.Sprintf("%s", v), "{", ""), "}", "")) + `]`
 		}
 
 		switch v.(type) {
@@ -546,6 +923,8 @@ func (g *Generator) genAction(a Action, skipBody ...bool) {
 				g.w("\t\t\t" + k + ": ")
 				// TODO: Handle comma separated strings as lists
 
+				// fmt.Printf("%s: %#v\n", a.Request(), apiRegistry[a.Request()])
+				// fmt.Printf("%s: %#v\n", k, apiRegistry[a.Request()][k])
 				typ, ok := apiRegistry[a.Request()][k]
 				if !ok {
 					panic(fmt.Sprintf("%s.%s: field not found", a.Request(), k))
@@ -603,13 +982,29 @@ func (g *Generator) genAction(a Action, skipBody ...bool) {
 					case "time.Duration":
 						// re := regexp.MustCompile("^(\\d+).*")
 						// value = re.ReplaceAllString(fmt.Sprintf("%s", v), "$1")
-						dur, err := time.ParseDuration(v.(string))
+						inputValue := v.(string)
+						if strings.HasSuffix(inputValue, "d") {
+							inputValue = inputValue[:len(inputValue)-1]
+							numericValue, err := strconv.Atoi(inputValue)
+							if err != nil {
+								panic(fmt.Sprintf("Cannot convert duration [%s]: %s", inputValue, err))
+							}
+							// Convert to hours
+							inputValue = fmt.Sprintf("%dh", numericValue*24)
+						}
+
+						dur, err := time.ParseDuration(inputValue)
 						if err != nil {
 							panic(fmt.Sprintf("Cannot parse duration [%s]: %s", v, err))
 						}
 						value = fmt.Sprintf("%d", dur.Nanoseconds())
 					default:
-						value = fmt.Sprintf("%q", v)
+						if strings.HasSuffix(k, "ID") {
+							value = fmt.Sprintf("url.QueryEscape(%q)", v)
+						} else {
+							value = fmt.Sprintf("%q", v)
+						}
+
 					}
 				}
 				g.w(value)
@@ -634,9 +1029,18 @@ func (g *Generator) genAction(a Action, skipBody ...bool) {
 				re := regexp.MustCompile("^(\\d+).*")
 				value = re.ReplaceAllString(fmt.Sprintf("%d", v), "$1")
 			case "*int":
-				g.w(`esapi.IntPtr(` + fmt.Sprintf("%d", v) + `)`)
+				switch v.(type) {
+				case int:
+					g.w(`esapi.IntPtr(` + fmt.Sprintf("%d", v) + `)`)
+				case float64:
+					if vv, ok := v.(float64); ok {
+						g.w(`esapi.IntPtr(` + fmt.Sprintf("%d", int(vv)) + `)`)
+					}
+				default:
+					panic(fmt.Sprintf("Unexpected type [%T] for [%s]", v, k))
+				}
 			default:
-				value = fmt.Sprintf("%d", v)
+				value = fmt.Sprintf("%v", v)
 			}
 			g.w(value)
 			g.w(",\n")
@@ -721,8 +1125,35 @@ func (g *Generator) genAction(a Action, skipBody ...bool) {
 		}
 	}
 
-	if len(a.headers) > 0 && strings.Contains(a.headers["Accept"], "yaml") && strings.HasPrefix(a.Request(), "Cat") {
-		g.w("\t\t" + `Format: "yaml",` + "\n")
+	if len(a.headers) > 0 {
+		if strings.Contains(a.headers["Accept"], "yaml") && strings.HasPrefix(a.Request(), "Cat") {
+			g.w("\t\t" + `Format: "yaml",` + "\n")
+		}
+
+		g.w("\t\tHeader: http.Header{\n")
+		for name, value := range a.headers {
+
+			if name == "Content-Type" && value == "application/json"{
+				continue
+			}
+
+			if name == "Authorization" {
+				auth_fields := strings.Split(value, " ")
+				auth_name := auth_fields[0]
+				auth_value := auth_fields[1]
+				if strings.HasPrefix(auth_value, "$") {
+					auth_value = `fmt.Sprintf("%s", stash["` + strings.ReplaceAll(strings.ReplaceAll(auth_value, "{", ""), "}", "") + `"])`
+				} else {
+					auth_value = `"` + auth_value + `"`
+				}
+				g.w("\t\t\t" + `"Authorization": []string{"` + auth_name + ` " + ` + auth_value + `},` + "\n")
+
+			} else {
+				g.w("\t\t\t\"" + name + "\": []string{\"" + value + "\"},\n")
+			}
+
+		}
+		g.w("\t\t},\n")
 	}
 
 	g.w("\t\t}\n\n")
@@ -734,7 +1165,6 @@ func (g *Generator) genAction(a Action, skipBody ...bool) {
 			t.Fatalf("ERROR: %s", err)
 		}
 		defer res.Body.Close()
-		debug(res)
 	`)
 
 	g.w("\n\n")
@@ -748,7 +1178,7 @@ func (g *Generator) genAction(a Action, skipBody ...bool) {
 
 	if len(skipBody) < 1 || (len(skipBody) > 0 && skipBody[0] == false) {
 		// Read and parse the body
-		g.w(`		handleResponseBody(res)` + "\n")
+		g.w(`		handleResponseBody(t, res)` + "\n")
 	}
 }
 
@@ -760,7 +1190,29 @@ func (g *Generator) genAssertion(a Assertion) {
 
 func (g *Generator) genStashSet(s Stash) {
 	g.w(fmt.Sprintf("// Set %q\n", s.Key()))
-	g.w(fmt.Sprintf("stash[%q] = %s\n", s.Key(), s.Value()))
+
+	value := s.Value()
+	if strings.HasPrefix(value, `mapi["#`) {
+		switch {
+		case strings.HasPrefix(value, `mapi["#base64EncodeCredentials`):
+			i, j := strings.Index(value, "("), strings.Index(value, ")")
+			values := strings.Split(value[i+1:j], ",")
+			value = `base64.StdEncoding.EncodeToString([]byte(`
+			value += `strings.Join([]string{`
+			for n, v := range values {
+				value += `mapi["` + v + `"].(string)`
+				if n < len(values)-1 {
+					value += ","
+				}
+			}
+			value += `}, ":")`
+			value += `))`
+		default:
+			panic(fmt.Sprintf("Unknown transformation: %s", value))
+		}
+	}
+
+	g.w(fmt.Sprintf("stash[%q] = %s\n", s.Key(), value))
 }
 
 func convert(i interface{}) interface{} {

@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +30,7 @@ func newIndicesRolloverFunc(t Transport) IndicesRollover {
 // IndicesRollover updates an alias to point to a new index when the existing index
 // is considered to be too large or too old.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html.
 //
 type IndicesRollover func(alias string, o ...func(*IndicesRolloverRequest)) (*Response, error)
 
@@ -34,10 +39,10 @@ type IndicesRollover func(alias string, o ...func(*IndicesRolloverRequest)) (*Re
 type IndicesRolloverRequest struct {
 	Body io.Reader
 
-	NewIndex            string
-	Alias               string
+	Alias    string
+	NewIndex string
+
 	DryRun              *bool
-	IncludeTypeName     *bool
 	MasterTimeout       time.Duration
 	Timeout             time.Duration
 	WaitForActiveShards string
@@ -46,6 +51,8 @@ type IndicesRolloverRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -77,10 +84,6 @@ func (r IndicesRolloverRequest) Do(ctx context.Context, transport Transport) (*R
 		params["dry_run"] = strconv.FormatBool(*r.DryRun)
 	}
 
-	if r.IncludeTypeName != nil {
-		params["include_type_name"] = strconv.FormatBool(*r.IncludeTypeName)
-	}
-
 	if r.MasterTimeout != 0 {
 		params["master_timeout"] = formatDuration(r.MasterTimeout)
 	}
@@ -109,7 +112,10 @@ func (r IndicesRolloverRequest) Do(ctx context.Context, transport Transport) (*R
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -121,6 +127,18 @@ func (r IndicesRolloverRequest) Do(ctx context.Context, transport Transport) (*R
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -149,14 +167,6 @@ func (f IndicesRollover) WithContext(v context.Context) func(*IndicesRolloverReq
 	}
 }
 
-// WithNewIndex - the name of the rollover index.
-//
-func (f IndicesRollover) WithNewIndex(v string) func(*IndicesRolloverRequest) {
-	return func(r *IndicesRolloverRequest) {
-		r.NewIndex = v
-	}
-}
-
 // WithBody - The conditions that needs to be met for executing rollover.
 //
 func (f IndicesRollover) WithBody(v io.Reader) func(*IndicesRolloverRequest) {
@@ -165,19 +175,19 @@ func (f IndicesRollover) WithBody(v io.Reader) func(*IndicesRolloverRequest) {
 	}
 }
 
+// WithNewIndex - the name of the rollover index.
+//
+func (f IndicesRollover) WithNewIndex(v string) func(*IndicesRolloverRequest) {
+	return func(r *IndicesRolloverRequest) {
+		r.NewIndex = v
+	}
+}
+
 // WithDryRun - if set to true the rollover action will only be validated but not actually performed even if a condition matches. the default is false.
 //
 func (f IndicesRollover) WithDryRun(v bool) func(*IndicesRolloverRequest) {
 	return func(r *IndicesRolloverRequest) {
 		r.DryRun = &v
-	}
-}
-
-// WithIncludeTypeName - whether a type should be included in the body of the mappings..
-//
-func (f IndicesRollover) WithIncludeTypeName(v bool) func(*IndicesRolloverRequest) {
-	return func(r *IndicesRolloverRequest) {
-		r.IncludeTypeName = &v
 	}
 }
 
@@ -234,5 +244,29 @@ func (f IndicesRollover) WithErrorTrace() func(*IndicesRolloverRequest) {
 func (f IndicesRollover) WithFilterPath(v ...string) func(*IndicesRolloverRequest) {
 	return func(r *IndicesRolloverRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IndicesRollover) WithHeader(h map[string]string) func(*IndicesRolloverRequest) {
+	return func(r *IndicesRolloverRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IndicesRollover) WithOpaqueID(s string) func(*IndicesRolloverRequest) {
+	return func(r *IndicesRolloverRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -22,26 +27,22 @@ func newGetFunc(t Transport) Get {
 
 // Get returns a document.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html.
 //
 type Get func(index string, id string, o ...func(*GetRequest)) (*Response, error)
 
 // GetRequest configures the Get API request.
 //
 type GetRequest struct {
-	Index        string
-	DocumentType string
-	DocumentID   string
+	Index      string
+	DocumentID string
 
-	Parent         string
 	Preference     string
 	Realtime       *bool
 	Refresh        *bool
 	Routing        string
 	Source         []string
-	SourceExclude  []string
 	SourceExcludes []string
-	SourceInclude  []string
 	SourceIncludes []string
 	StoredFields   []string
 	Version        *int
@@ -51,6 +52,8 @@ type GetRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -66,25 +69,15 @@ func (r GetRequest) Do(ctx context.Context, transport Transport) (*Response, err
 
 	method = "GET"
 
-	if r.DocumentType == "" {
-		r.DocumentType = "_doc"
-	}
-
-	path.Grow(1 + len(r.Index) + 1 + len(r.DocumentType) + 1 + len(r.DocumentID))
+	path.Grow(1 + len(r.Index) + 1 + len("_doc") + 1 + len(r.DocumentID))
 	path.WriteString("/")
 	path.WriteString(r.Index)
-	if r.DocumentType != "" {
-		path.WriteString("/")
-		path.WriteString(r.DocumentType)
-	}
+	path.WriteString("/")
+	path.WriteString("_doc")
 	path.WriteString("/")
 	path.WriteString(r.DocumentID)
 
 	params = make(map[string]string)
-
-	if r.Parent != "" {
-		params["parent"] = r.Parent
-	}
 
 	if r.Preference != "" {
 		params["preference"] = r.Preference
@@ -106,16 +99,8 @@ func (r GetRequest) Do(ctx context.Context, transport Transport) (*Response, err
 		params["_source"] = strings.Join(r.Source, ",")
 	}
 
-	if len(r.SourceExclude) > 0 {
-		params["_source_exclude"] = strings.Join(r.SourceExclude, ",")
-	}
-
 	if len(r.SourceExcludes) > 0 {
 		params["_source_excludes"] = strings.Join(r.SourceExcludes, ",")
-	}
-
-	if len(r.SourceInclude) > 0 {
-		params["_source_include"] = strings.Join(r.SourceInclude, ",")
 	}
 
 	if len(r.SourceIncludes) > 0 {
@@ -150,7 +135,10 @@ func (r GetRequest) Do(ctx context.Context, transport Transport) (*Response, err
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -158,6 +146,18 @@ func (r GetRequest) Do(ctx context.Context, transport Transport) (*Response, err
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -183,22 +183,6 @@ func (r GetRequest) Do(ctx context.Context, transport Transport) (*Response, err
 func (f Get) WithContext(v context.Context) func(*GetRequest) {
 	return func(r *GetRequest) {
 		r.ctx = v
-	}
-}
-
-// WithDocumentType - the type of the document (use `_all` to fetch the first document matching the ID across all types).
-//
-func (f Get) WithDocumentType(v string) func(*GetRequest) {
-	return func(r *GetRequest) {
-		r.DocumentType = v
-	}
-}
-
-// WithParent - the ID of the parent document.
-//
-func (f Get) WithParent(v string) func(*GetRequest) {
-	return func(r *GetRequest) {
-		r.Parent = v
 	}
 }
 
@@ -242,27 +226,11 @@ func (f Get) WithSource(v ...string) func(*GetRequest) {
 	}
 }
 
-// WithSourceExclude - a list of fields to exclude from the returned _source field.
-//
-func (f Get) WithSourceExclude(v ...string) func(*GetRequest) {
-	return func(r *GetRequest) {
-		r.SourceExclude = v
-	}
-}
-
 // WithSourceExcludes - a list of fields to exclude from the returned _source field.
 //
 func (f Get) WithSourceExcludes(v ...string) func(*GetRequest) {
 	return func(r *GetRequest) {
 		r.SourceExcludes = v
-	}
-}
-
-// WithSourceInclude - a list of fields to extract and return from the _source field.
-//
-func (f Get) WithSourceInclude(v ...string) func(*GetRequest) {
-	return func(r *GetRequest) {
-		r.SourceInclude = v
 	}
 }
 
@@ -327,5 +295,29 @@ func (f Get) WithErrorTrace() func(*GetRequest) {
 func (f Get) WithFilterPath(v ...string) func(*GetRequest) {
 	return func(r *GetRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Get) WithHeader(h map[string]string) func(*GetRequest) {
+	return func(r *GetRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Get) WithOpaqueID(s string) func(*GetRequest) {
+	return func(r *GetRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

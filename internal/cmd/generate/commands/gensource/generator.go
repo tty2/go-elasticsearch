@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 package gensource
 
 import (
@@ -72,7 +76,10 @@ func (g *Generator) w(s string) {
 }
 
 func (g *Generator) genHeader() {
-	g.w("// Code generated")
+	g.w(`// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.` + "\n")
+	g.w("//\n// Code generated")
 	if EsVersion != "" {
 		g.w(fmt.Sprintf(" from specification version %s", EsVersion))
 	}
@@ -114,20 +121,28 @@ func new` + g.Endpoint.MethodWithNamespace() + `Func(t Transport) ` + g.Endpoint
 func (g *Generator) genMethodDefinition() {
 	g.w("\n// ----- API Definition -------------------------------------------------------\n\n")
 
-	if g.Endpoint.Description != "" {
-		words := strings.Split(g.Endpoint.Description, " ")
-		initial := strings.ToLower(words[0:1][0])
-		description := initial + " " + strings.Join(words[1:], " ")
-		lines := strings.Split(description, "\n")
+	if g.Endpoint.Type == "xpack" {
+		g.w(`// ` + g.Endpoint.MethodWithNamespace() + " - " + g.Endpoint.Documentation.Description)
+	} else {
+		if g.Endpoint.Documentation.Description != "" {
+			words := strings.Split(g.Endpoint.Documentation.Description, " ")
+			initial := strings.ToLower(words[0:1][0])
+			description := initial + " " + strings.Join(words[1:], " ")
+			lines := strings.Split(description, "\n")
 
-		g.w(`// ` + g.Endpoint.MethodWithNamespace() + " " + lines[0:1][0])
-		for _, line := range lines[1:] {
-			g.w("\n// " + line)
+			g.w(`// ` + g.Endpoint.MethodWithNamespace() + " " + lines[0:1][0])
+			for _, line := range lines[1:] {
+				g.w("\n// " + line)
+			}
 		}
 	}
 
-	if g.Endpoint.Documentation != "" {
-		g.w("\n//\n" + `// See full documentation at ` + g.Endpoint.Documentation + ".")
+	if g.Endpoint.Stability != "stable" {
+		g.w("\n//\n// This API is " + g.Endpoint.Stability + ".")
+	}
+
+	if g.Endpoint.Documentation.URL != "" {
+		g.w("\n//\n" + `// See full documentation at ` + g.Endpoint.Documentation.URL + ".")
 	}
 
 	g.w(`
@@ -167,45 +182,68 @@ func (g *Generator) genRequestStruct() {
 // ` + g.Endpoint.MethodWithNamespace() + `Request configures the ` + g.Endpoint.HumanMethodWithNamespace() + ` API request.
 //
 type ` + g.Endpoint.MethodWithNamespace() + `Request struct {`)
-
-	specialFields := []string{"index", "type", "id"}
+	specialFields := []string{"index", "id"}
 	for _, n := range specialFields {
-		if param, ok := g.Endpoint.URL.Parts[n]; ok {
+		if param, ok := g.Endpoint.URL.AllParts[n]; ok {
 			g.w("\n\t" + param.GoName())
 			g.w("\t" + param.GoType(true))
 		}
+	}
+
+	if len(g.Endpoint.URL.AllParts) > 0 {
+		g.w("\n")
 	}
 
 	if g.Endpoint.Body != nil {
 		g.w("\n\tBody io.Reader")
 	}
 
-	if len(g.Endpoint.URL.Parts) > 0 || g.Endpoint.Body != nil {
+	if len(g.Endpoint.URL.AllParts) > 0 || g.Endpoint.Body != nil {
 		g.w("\n")
 	}
 
-	for _, p := range g.Endpoint.URL.Parts {
+	for _, name := range g.Endpoint.URL.PartNamesSorted {
+		p, ok := g.Endpoint.URL.AllParts[name]
+		if !ok {
+			panic(fmt.Sprintf("Part %q not found", name))
+		}
+
 		skip := false
 		for _, v := range specialFields {
 			if p.Name == v {
 				skip = true
 			}
 		}
+		// Skip type only for selected APIs at this point
+		if p.Name == "type" && p.Deprecated {
+			if g.Endpoint.Name == "bulk" ||
+				g.Endpoint.Name == "create" ||
+				g.Endpoint.Name == "delete" ||
+				g.Endpoint.Name == "index" ||
+				g.Endpoint.Name == "update" {
+				continue
+			}
+		}
+
 		if skip {
 			continue
 		}
 		g.w("\n\t" + p.GoName())
 		g.w("\t" + p.GoType(true))
+
 	}
 
-	// TODO: Sort params beginning with underscore correctly
+	if len(g.Endpoint.URL.AllParts) > 0 {
+		g.w("\n")
+	}
+
 	for _, name := range g.Endpoint.URL.ParamNamesSorted {
 		p, ok := g.Endpoint.URL.Params[name]
 		if !ok {
 			panic(fmt.Sprintf("Parameter %q not found", name))
 		}
 
-		if _, ok := g.Endpoint.URL.Parts[name]; ok {
+		if _, ok := g.Endpoint.URL.AllParts[name]; ok {
 			continue // skip params which are also parts
 		}
 
@@ -217,6 +255,8 @@ type ` + g.Endpoint.MethodWithNamespace() + `Request struct {`)
 	g.w("\n\tHuman\tbool")
 	g.w("\n\tErrorTrace\tbool")
 	g.w("\n\tFilterPath\t[]string\n")
+
+	g.w("\n\n\tHeader\thttp.Header\n")
 
 	g.w("\n\tctx context.Context\n}\n")
 }
@@ -236,7 +276,9 @@ func (f ` + g.Endpoint.MethodWithNamespace() + `) WithContext(v context.Context)
 	// Skip adding With... options for arguments which are part of the method signature
 	skipRequiredArgs := make(map[string]bool)
 	for _, p := range g.Endpoint.RequiredArguments() {
-		skipRequiredArgs[p.Name] = true
+		if p.Name != "type" {
+			skipRequiredArgs[p.Name] = true
+		}
 	}
 
 	var methodBody = func(e *Endpoint, a interface{}) string {
@@ -311,19 +353,6 @@ func (f ` + g.Endpoint.MethodWithNamespace() + `) WithContext(v context.Context)
 		return b.String()
 	}
 
-	// Generate With... methods for parts
-	for _, pName := range g.Endpoint.URL.PartNamesSorted {
-		if p, ok := g.Endpoint.URL.Parts[pName]; ok {
-			if skipRequiredArgs[p.Name] && p.Name != "type" {
-				continue
-			}
-
-			g.w(methodBody(g.Endpoint, p))
-		} else {
-			g.w(`// TODO: ` + p.Name)
-		}
-	}
-
 	// Generate WithBody method
 	if b := g.Endpoint.Body; b != nil {
 		// Do not add the option when body is part of the method signature
@@ -340,9 +369,22 @@ func (f ` + g.Endpoint.MethodWithNamespace() + `) WithBody(v io.Reader) func(*` 
 		}
 	}
 
+	// Generate With... methods for parts
+	for _, pName := range g.Endpoint.URL.PartNamesSorted {
+		if p, ok := g.Endpoint.URL.AllParts[pName]; ok {
+			if skipRequiredArgs[p.Name] {
+				continue
+			}
+
+			g.w(methodBody(g.Endpoint, p))
+		} else {
+			g.w(`// TODO: ` + p.Name)
+		}
+	}
+
 	// Generate With... methods for params
 	for _, pName := range g.Endpoint.URL.ParamNamesSorted {
-		if _, ok := g.Endpoint.URL.Parts[pName]; ok {
+		if _, ok := g.Endpoint.URL.AllParts[pName]; ok {
 			continue // skip params which are also parts
 		}
 		if p, ok := g.Endpoint.URL.Params[pName]; ok {
@@ -394,6 +436,36 @@ func (f ` + g.Endpoint.MethodWithNamespace() + `) WithFilterPath(v ...string) fu
 	}
 }
 `)
+
+	// Generate methods for HTTP headers
+	g.w(`
+// WithHeader adds the headers to the HTTP request.
+//
+func (f ` + g.Endpoint.MethodWithNamespace() + `) WithHeader(h map[string]string) func(*` + g.Endpoint.MethodWithNamespace() + `Request) {
+	return func(r *` + g.Endpoint.MethodWithNamespace() + `Request) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+`)
+
+	// Generate methods for the X-Opaque-ID header
+	g.w(`
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f ` + g.Endpoint.MethodWithNamespace() + `) WithOpaqueID(s string) func(*` + g.Endpoint.MethodWithNamespace() + `Request) {
+	return func(r *` + g.Endpoint.MethodWithNamespace() + `Request) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
+	}
+}
+`)
 }
 
 func (g *Generator) genDoMethod() {
@@ -417,7 +489,7 @@ func (r ` + g.Endpoint.MethodWithNamespace() + `Request) Do(ctx context.Context,
 	}`)
 		g.w("\n\n")
 	default:
-		g.w("\t" + `method = "` + g.Endpoint.Methods[0] + `"` + "\n\n")
+		g.w("\t" + `method = "` + g.Endpoint.URL.Paths[0].Methods[0] + `"` + "\n\n")
 	}
 
 	// Get default part values for specific APIs
@@ -425,7 +497,7 @@ func (r ` + g.Endpoint.MethodWithNamespace() + `Request) Do(ctx context.Context,
 	var defparts bool
 	switch g.Endpoint.Name {
 	case "index", "create", "delete", "explain", "exists", "get", "get_source", "update", "termvectors":
-		for _, p := range g.Endpoint.URL.Parts {
+		for _, p := range g.Endpoint.URL.AllParts {
 			if p.Default != nil {
 				var fieldName string
 				var fieldValue string
@@ -469,25 +541,36 @@ func (r ` + g.Endpoint.MethodWithNamespace() + `Request) Do(ctx context.Context,
 
 		pathGrow.WriteString(`	path.Grow(`)
 
-		if len(g.Endpoint.URL.Parts) < 1 {
-			if g.Endpoint.URL.Path == "" {
-				panic(fmt.Sprintf("FAIL: %q: empty endpoint\n", g.Endpoint.Name))
-			}
-			pathGrow.WriteString(`len("` + g.Endpoint.URL.Path + `")`)
-			pathContent.WriteString(`	path.WriteString("` + g.Endpoint.URL.Path + `")` + "\n")
-
-		} else {
-			// FIXME: Select longest path based on number of template entries, not string length
-			longestPath := g.Endpoint.URL.Paths[0]
-			for _, v := range g.Endpoint.URL.Paths {
-				if len(v) > len(longestPath) {
-					longestPath = v
+		// FIXME: Select longest path based on number of template entries, not string length
+		longestPath := g.Endpoint.URL.Paths[0]
+		for _, p := range g.Endpoint.URL.Paths {
+			// Skip deprecated parts only for selected APIs at this point
+			if p.Deprecated.Version != "" && p.Deprecated.Version < EsVersion {
+				if g.Endpoint.Name == "bulk" ||
+					g.Endpoint.Name == "create" ||
+					g.Endpoint.Name == "delete" ||
+					g.Endpoint.Name == "get" ||
+					g.Endpoint.Name == "index" ||
+					g.Endpoint.Name == "update" {
+					continue
 				}
 			}
+			if len(p.Path) > len(longestPath.Path) {
+				longestPath = p
+			}
+		}
 
+		if len(longestPath.Parts) < 1 {
+			if len(g.Endpoint.URL.Paths) < 1 {
+				panic(fmt.Sprintf("FAIL: %q: empty endpoint\n", g.Endpoint.Name))
+			}
+			pathGrow.WriteString(`len("` + longestPath.Path + `")`)
+			pathContent.WriteString(`	path.WriteString("` + longestPath.Path + `")` + "\n")
+
+		} else {
 			pathParts := make([]string, 0)
 			apiArgs := g.Endpoint.RequiredArguments()
-			for _, v := range strings.Split(longestPath, "/") {
+			for _, v := range strings.Split(longestPath.Path, "/") {
 				if v != "" {
 					pathParts = append(pathParts, v)
 				}
@@ -520,7 +603,8 @@ func (r ` + g.Endpoint.MethodWithNamespace() + `Request) Do(ctx context.Context,
 
 				// Optional arguments
 				if p == "" {
-					for _, a := range g.Endpoint.URL.Parts {
+					for _, a := range longestPath.Parts {
+						// fmt.Printf("%s: %+v\n", a.Name, a)
 						if strings.HasPrefix(v, "{") && a.Name == r.Replace(v) {
 							p = a.GoName()
 
@@ -536,6 +620,13 @@ func (r ` + g.Endpoint.MethodWithNamespace() + `Request) Do(ctx context.Context,
 								pathContent.WriteString(`	if len(r.` + p + `) > 0 {` + "\n")
 								pathContent.WriteString(`		path.WriteString("/")` + "\n")
 								pathContent.WriteString(`		path.WriteString(strings.Join(r.` + p + `, ","))` + "\n")
+								pathContent.WriteString(`	}` + "\n")
+							case "int", "long":
+								pathContent.WriteString(`	if r.` + p + ` != nil {` + "\n")
+								pathContent.WriteString(`		value := strconv.FormatInt(int64(*r.` + p + `), 10)` + "\n")
+								pathContent.WriteString(`		path.Grow(1 + len(value))` + "\n")
+								pathContent.WriteString(`		path.WriteString("/")` + "\n")
+								pathContent.WriteString(`		path.WriteString(value)` + "\n")
 								pathContent.WriteString(`	}` + "\n")
 							default:
 								panic(fmt.Sprintf("FAIL: %q: unexpected type %q for URL part %q\n", g.Endpoint.Name, a.Type, a.Name))
@@ -613,6 +704,12 @@ func (r ` + g.Endpoint.MethodWithNamespace() + `Request) Do(ctx context.Context,
 			case "*int":
 				fieldCondition = `r.` + fieldName + ` != nil`
 				fieldValue = `strconv.FormatInt(int64(*r.` + fieldName + `), 10)`
+			case "uint":
+				fieldCondition = `r.` + fieldName + ` != 0`
+				fieldValue = `strconv.FormatUint(uint64(r.` + fieldName + `), 10)`
+			case "*uint":
+				fieldCondition = `r.` + fieldName + ` != 0`
+				fieldValue = `strconv.FormatUint(uint64(*r.` + fieldName + `), 10)`
 			case "[]string":
 				fieldCondition = ` len(r.` + fieldName + `) > 0`
 				fieldValue = `strings.Join(r.` + fieldName + `, ",")`
@@ -663,7 +760,10 @@ func (r ` + g.Endpoint.MethodWithNamespace() + `Request) Do(ctx context.Context,
 		httpBody = "nil"
 	}
 
-	g.w(`req, _ := newRequest(method, path.String(), ` + httpBody + `)` + "\n\n")
+	g.w(`req, err := newRequest(method, path.String(), ` + httpBody + `)` + "\n")
+	g.w(`if err != nil {
+		return nil, err
+	}` + "\n\n")
 
 	g.w(`if len(params) > 0 {
 		q := req.URL.Query()
@@ -678,6 +778,18 @@ func (r ` + g.Endpoint.MethodWithNamespace() + `Request) Do(ctx context.Context,
 		req.Header[headerContentType] = headerContentTypeJSON
 	}` + "\n\n")
 	}
+
+	g.w(`if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
+	}` + "\n\n")
 
 	g.w(`if ctx != nil {
 		req = req.WithContext(ctx)

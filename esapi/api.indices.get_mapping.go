@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -23,20 +28,18 @@ func newIndicesGetMappingFunc(t Transport) IndicesGetMapping {
 
 // IndicesGetMapping returns mappings for one or more indices.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-mapping.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-mapping.html.
 //
 type IndicesGetMapping func(o ...func(*IndicesGetMappingRequest)) (*Response, error)
 
-// IndicesGetMappingRequest configures the Indices  Get Mapping API request.
+// IndicesGetMappingRequest configures the Indices Get Mapping API request.
 //
 type IndicesGetMappingRequest struct {
-	Index        []string
-	DocumentType []string
+	Index []string
 
 	AllowNoIndices    *bool
 	ExpandWildcards   string
 	IgnoreUnavailable *bool
-	IncludeTypeName   *bool
 	Local             *bool
 	MasterTimeout     time.Duration
 
@@ -44,6 +47,8 @@ type IndicesGetMappingRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -59,17 +64,13 @@ func (r IndicesGetMappingRequest) Do(ctx context.Context, transport Transport) (
 
 	method = "GET"
 
-	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len("_mapping") + 1 + len(strings.Join(r.DocumentType, ",")))
+	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len("_mapping"))
 	if len(r.Index) > 0 {
 		path.WriteString("/")
 		path.WriteString(strings.Join(r.Index, ","))
 	}
 	path.WriteString("/")
 	path.WriteString("_mapping")
-	if len(r.DocumentType) > 0 {
-		path.WriteString("/")
-		path.WriteString(strings.Join(r.DocumentType, ","))
-	}
 
 	params = make(map[string]string)
 
@@ -83,10 +84,6 @@ func (r IndicesGetMappingRequest) Do(ctx context.Context, transport Transport) (
 
 	if r.IgnoreUnavailable != nil {
 		params["ignore_unavailable"] = strconv.FormatBool(*r.IgnoreUnavailable)
-	}
-
-	if r.IncludeTypeName != nil {
-		params["include_type_name"] = strconv.FormatBool(*r.IncludeTypeName)
 	}
 
 	if r.Local != nil {
@@ -113,7 +110,10 @@ func (r IndicesGetMappingRequest) Do(ctx context.Context, transport Transport) (
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -121,6 +121,18 @@ func (r IndicesGetMappingRequest) Do(ctx context.Context, transport Transport) (
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -157,14 +169,6 @@ func (f IndicesGetMapping) WithIndex(v ...string) func(*IndicesGetMappingRequest
 	}
 }
 
-// WithDocumentType - a list of document types.
-//
-func (f IndicesGetMapping) WithDocumentType(v ...string) func(*IndicesGetMappingRequest) {
-	return func(r *IndicesGetMappingRequest) {
-		r.DocumentType = v
-	}
-}
-
 // WithAllowNoIndices - whether to ignore if a wildcard indices expression resolves into no concrete indices. (this includes `_all` string or when no indices have been specified).
 //
 func (f IndicesGetMapping) WithAllowNoIndices(v bool) func(*IndicesGetMappingRequest) {
@@ -186,14 +190,6 @@ func (f IndicesGetMapping) WithExpandWildcards(v string) func(*IndicesGetMapping
 func (f IndicesGetMapping) WithIgnoreUnavailable(v bool) func(*IndicesGetMappingRequest) {
 	return func(r *IndicesGetMappingRequest) {
 		r.IgnoreUnavailable = &v
-	}
-}
-
-// WithIncludeTypeName - whether to add the type name to the response (default: false).
-//
-func (f IndicesGetMapping) WithIncludeTypeName(v bool) func(*IndicesGetMappingRequest) {
-	return func(r *IndicesGetMappingRequest) {
-		r.IncludeTypeName = &v
 	}
 }
 
@@ -242,5 +238,29 @@ func (f IndicesGetMapping) WithErrorTrace() func(*IndicesGetMappingRequest) {
 func (f IndicesGetMapping) WithFilterPath(v ...string) func(*IndicesGetMappingRequest) {
 	return func(r *IndicesGetMappingRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IndicesGetMapping) WithHeader(h map[string]string) func(*IndicesGetMappingRequest) {
+	return func(r *IndicesGetMappingRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IndicesGetMapping) WithOpaqueID(s string) func(*IndicesGetMappingRequest) {
+	return func(r *IndicesGetMappingRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

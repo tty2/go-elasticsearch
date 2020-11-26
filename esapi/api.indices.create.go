@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,7 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
-	"strconv"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -24,7 +28,7 @@ func newIndicesCreateFunc(t Transport) IndicesCreate {
 
 // IndicesCreate creates an index with optional settings and mappings.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html.
 //
 type IndicesCreate func(index string, o ...func(*IndicesCreateRequest)) (*Response, error)
 
@@ -32,9 +36,9 @@ type IndicesCreate func(index string, o ...func(*IndicesCreateRequest)) (*Respon
 //
 type IndicesCreateRequest struct {
 	Index string
-	Body  io.Reader
 
-	IncludeTypeName     *bool
+	Body io.Reader
+
 	MasterTimeout       time.Duration
 	Timeout             time.Duration
 	WaitForActiveShards string
@@ -43,6 +47,8 @@ type IndicesCreateRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -63,10 +69,6 @@ func (r IndicesCreateRequest) Do(ctx context.Context, transport Transport) (*Res
 	path.WriteString(r.Index)
 
 	params = make(map[string]string)
-
-	if r.IncludeTypeName != nil {
-		params["include_type_name"] = strconv.FormatBool(*r.IncludeTypeName)
-	}
 
 	if r.MasterTimeout != 0 {
 		params["master_timeout"] = formatDuration(r.MasterTimeout)
@@ -96,7 +98,10 @@ func (r IndicesCreateRequest) Do(ctx context.Context, transport Transport) (*Res
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -108,6 +113,18 @@ func (r IndicesCreateRequest) Do(ctx context.Context, transport Transport) (*Res
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -141,14 +158,6 @@ func (f IndicesCreate) WithContext(v context.Context) func(*IndicesCreateRequest
 func (f IndicesCreate) WithBody(v io.Reader) func(*IndicesCreateRequest) {
 	return func(r *IndicesCreateRequest) {
 		r.Body = v
-	}
-}
-
-// WithIncludeTypeName - whether a type should be expected in the body of the mappings..
-//
-func (f IndicesCreate) WithIncludeTypeName(v bool) func(*IndicesCreateRequest) {
-	return func(r *IndicesCreateRequest) {
-		r.IncludeTypeName = &v
 	}
 }
 
@@ -205,5 +214,29 @@ func (f IndicesCreate) WithErrorTrace() func(*IndicesCreateRequest) {
 func (f IndicesCreate) WithFilterPath(v ...string) func(*IndicesCreateRequest) {
 	return func(r *IndicesCreateRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IndicesCreate) WithHeader(h map[string]string) func(*IndicesCreateRequest) {
+	return func(r *IndicesCreateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IndicesCreate) WithOpaqueID(s string) func(*IndicesCreateRequest) {
+	return func(r *IndicesCreateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

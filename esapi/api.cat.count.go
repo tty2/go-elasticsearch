@@ -1,12 +1,16 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func newCatCountFunc(t Transport) CatCount {
@@ -23,7 +27,7 @@ func newCatCountFunc(t Transport) CatCount {
 
 // CatCount provides quick access to the document count of the entire cluster, or individual indices.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-count.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-count.html.
 //
 type CatCount func(o ...func(*CatCountRequest)) (*Response, error)
 
@@ -32,18 +36,18 @@ type CatCount func(o ...func(*CatCountRequest)) (*Response, error)
 type CatCountRequest struct {
 	Index []string
 
-	Format        string
-	H             []string
-	Help          *bool
-	Local         *bool
-	MasterTimeout time.Duration
-	S             []string
-	V             *bool
+	Format string
+	H      []string
+	Help   *bool
+	S      []string
+	V      *bool
 
 	Pretty     bool
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -83,14 +87,6 @@ func (r CatCountRequest) Do(ctx context.Context, transport Transport) (*Response
 		params["help"] = strconv.FormatBool(*r.Help)
 	}
 
-	if r.Local != nil {
-		params["local"] = strconv.FormatBool(*r.Local)
-	}
-
-	if r.MasterTimeout != 0 {
-		params["master_timeout"] = formatDuration(r.MasterTimeout)
-	}
-
 	if len(r.S) > 0 {
 		params["s"] = strings.Join(r.S, ",")
 	}
@@ -115,7 +111,10 @@ func (r CatCountRequest) Do(ctx context.Context, transport Transport) (*Response
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -123,6 +122,18 @@ func (r CatCountRequest) Do(ctx context.Context, transport Transport) (*Response
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -183,22 +194,6 @@ func (f CatCount) WithHelp(v bool) func(*CatCountRequest) {
 	}
 }
 
-// WithLocal - return local information, do not retrieve the state from master node (default: false).
-//
-func (f CatCount) WithLocal(v bool) func(*CatCountRequest) {
-	return func(r *CatCountRequest) {
-		r.Local = &v
-	}
-}
-
-// WithMasterTimeout - explicit operation timeout for connection to master node.
-//
-func (f CatCount) WithMasterTimeout(v time.Duration) func(*CatCountRequest) {
-	return func(r *CatCountRequest) {
-		r.MasterTimeout = v
-	}
-}
-
 // WithS - comma-separated list of column names or column aliases to sort by.
 //
 func (f CatCount) WithS(v ...string) func(*CatCountRequest) {
@@ -244,5 +239,29 @@ func (f CatCount) WithErrorTrace() func(*CatCountRequest) {
 func (f CatCount) WithFilterPath(v ...string) func(*CatCountRequest) {
 	return func(r *CatCountRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f CatCount) WithHeader(h map[string]string) func(*CatCountRequest) {
+	return func(r *CatCountRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f CatCount) WithOpaqueID(s string) func(*CatCountRequest) {
+	return func(r *CatCountRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

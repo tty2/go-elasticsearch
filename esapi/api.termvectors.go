@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -23,22 +28,21 @@ func newTermvectorsFunc(t Transport) Termvectors {
 
 // Termvectors returns information and statistics about terms in the fields of a particular document.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-termvectors.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-termvectors.html.
 //
 type Termvectors func(index string, o ...func(*TermvectorsRequest)) (*Response, error)
 
 // TermvectorsRequest configures the Termvectors API request.
 //
 type TermvectorsRequest struct {
-	Index        string
-	DocumentType string
-	DocumentID   string
-	Body         io.Reader
+	Index      string
+	DocumentID string
+
+	Body io.Reader
 
 	Fields          []string
 	FieldStatistics *bool
 	Offsets         *bool
-	Parent          string
 	Payloads        *bool
 	Positions       *bool
 	Preference      string
@@ -52,6 +56,8 @@ type TermvectorsRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -67,23 +73,15 @@ func (r TermvectorsRequest) Do(ctx context.Context, transport Transport) (*Respo
 
 	method = "GET"
 
-	if r.DocumentType == "" {
-		r.DocumentType = "_doc"
-	}
-
-	path.Grow(1 + len(r.Index) + 1 + len(r.DocumentType) + 1 + len(r.DocumentID) + 1 + len("_termvectors"))
+	path.Grow(1 + len(r.Index) + 1 + len("_termvectors") + 1 + len(r.DocumentID))
 	path.WriteString("/")
 	path.WriteString(r.Index)
-	if r.DocumentType != "" {
-		path.WriteString("/")
-		path.WriteString(r.DocumentType)
-	}
+	path.WriteString("/")
+	path.WriteString("_termvectors")
 	if r.DocumentID != "" {
 		path.WriteString("/")
 		path.WriteString(r.DocumentID)
 	}
-	path.WriteString("/")
-	path.WriteString("_termvectors")
 
 	params = make(map[string]string)
 
@@ -97,10 +95,6 @@ func (r TermvectorsRequest) Do(ctx context.Context, transport Transport) (*Respo
 
 	if r.Offsets != nil {
 		params["offsets"] = strconv.FormatBool(*r.Offsets)
-	}
-
-	if r.Parent != "" {
-		params["parent"] = r.Parent
 	}
 
 	if r.Payloads != nil {
@@ -151,7 +145,10 @@ func (r TermvectorsRequest) Do(ctx context.Context, transport Transport) (*Respo
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -163,6 +160,18 @@ func (r TermvectorsRequest) Do(ctx context.Context, transport Transport) (*Respo
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -191,27 +200,19 @@ func (f Termvectors) WithContext(v context.Context) func(*TermvectorsRequest) {
 	}
 }
 
-// WithDocumentID - the ID of the document, when not specified a doc param should be supplied..
-//
-func (f Termvectors) WithDocumentID(v string) func(*TermvectorsRequest) {
-	return func(r *TermvectorsRequest) {
-		r.DocumentID = v
-	}
-}
-
-// WithDocumentType - the type of the document..
-//
-func (f Termvectors) WithDocumentType(v string) func(*TermvectorsRequest) {
-	return func(r *TermvectorsRequest) {
-		r.DocumentType = v
-	}
-}
-
 // WithBody - Define parameters and or supply a document to get termvectors for. See documentation..
 //
 func (f Termvectors) WithBody(v io.Reader) func(*TermvectorsRequest) {
 	return func(r *TermvectorsRequest) {
 		r.Body = v
+	}
+}
+
+// WithDocumentID - the ID of the document, when not specified a doc param should be supplied..
+//
+func (f Termvectors) WithDocumentID(v string) func(*TermvectorsRequest) {
+	return func(r *TermvectorsRequest) {
+		r.DocumentID = v
 	}
 }
 
@@ -236,14 +237,6 @@ func (f Termvectors) WithFieldStatistics(v bool) func(*TermvectorsRequest) {
 func (f Termvectors) WithOffsets(v bool) func(*TermvectorsRequest) {
 	return func(r *TermvectorsRequest) {
 		r.Offsets = &v
-	}
-}
-
-// WithParent - parent ID of documents..
-//
-func (f Termvectors) WithParent(v string) func(*TermvectorsRequest) {
-	return func(r *TermvectorsRequest) {
-		r.Parent = v
 	}
 }
 
@@ -340,5 +333,29 @@ func (f Termvectors) WithErrorTrace() func(*TermvectorsRequest) {
 func (f Termvectors) WithFilterPath(v ...string) func(*TermvectorsRequest) {
 	return func(r *TermvectorsRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Termvectors) WithHeader(h map[string]string) func(*TermvectorsRequest) {
+	return func(r *TermvectorsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Termvectors) WithOpaqueID(s string) func(*TermvectorsRequest) {
+	return func(r *TermvectorsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

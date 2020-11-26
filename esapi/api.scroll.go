@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -24,7 +29,7 @@ func newScrollFunc(t Transport) Scroll {
 
 // Scroll allows to retrieve a large numbers of results from a single search request.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll.
 //
 type Scroll func(o ...func(*ScrollRequest)) (*Response, error)
 
@@ -33,7 +38,8 @@ type Scroll func(o ...func(*ScrollRequest)) (*Response, error)
 type ScrollRequest struct {
 	Body io.Reader
 
-	ScrollID           string
+	ScrollID string
+
 	RestTotalHitsAsInt *bool
 	Scroll             time.Duration
 
@@ -41,6 +47,8 @@ type ScrollRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -56,15 +64,8 @@ func (r ScrollRequest) Do(ctx context.Context, transport Transport) (*Response, 
 
 	method = "GET"
 
-	path.Grow(1 + len("_search") + 1 + len("scroll") + 1 + len(r.ScrollID))
-	path.WriteString("/")
-	path.WriteString("_search")
-	path.WriteString("/")
-	path.WriteString("scroll")
-	if r.ScrollID != "" {
-		path.WriteString("/")
-		path.WriteString(r.ScrollID)
-	}
+	path.Grow(len("/_search/scroll"))
+	path.WriteString("/_search/scroll")
 
 	params = make(map[string]string)
 
@@ -96,7 +97,10 @@ func (r ScrollRequest) Do(ctx context.Context, transport Transport) (*Response, 
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -108,6 +112,18 @@ func (r ScrollRequest) Do(ctx context.Context, transport Transport) (*Response, 
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -136,19 +152,19 @@ func (f Scroll) WithContext(v context.Context) func(*ScrollRequest) {
 	}
 }
 
-// WithScrollID - the scroll ID.
-//
-func (f Scroll) WithScrollID(v string) func(*ScrollRequest) {
-	return func(r *ScrollRequest) {
-		r.ScrollID = v
-	}
-}
-
 // WithBody - The scroll ID if not passed by URL or query parameter..
 //
 func (f Scroll) WithBody(v io.Reader) func(*ScrollRequest) {
 	return func(r *ScrollRequest) {
 		r.Body = v
+	}
+}
+
+// WithScrollID - the scroll ID.
+//
+func (f Scroll) WithScrollID(v string) func(*ScrollRequest) {
+	return func(r *ScrollRequest) {
+		r.ScrollID = v
 	}
 }
 
@@ -197,5 +213,29 @@ func (f Scroll) WithErrorTrace() func(*ScrollRequest) {
 func (f Scroll) WithFilterPath(v ...string) func(*ScrollRequest) {
 	return func(r *ScrollRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Scroll) WithHeader(h map[string]string) func(*ScrollRequest) {
+	return func(r *ScrollRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Scroll) WithOpaqueID(s string) func(*ScrollRequest) {
+	return func(r *ScrollRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 // +build !integration
 
 package estransport_test
@@ -37,8 +41,27 @@ func BenchmarkTransport(b *testing.B) {
 
 	b.Run("Defaults", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			tp := estransport.New(estransport.Config{
-				URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+			tp, _ := estransport.New(estransport.Config{
+				URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
+				Transport: newFakeTransport(b),
+			})
+
+			req, _ := http.NewRequest("GET", "/abc", nil)
+			_, err := tp.Perform(req)
+			if err != nil {
+				b.Fatalf("Unexpected error: %s", err)
+			}
+		}
+	})
+
+	b.Run("Headers", func(b *testing.B) {
+		hdr := http.Header{}
+		hdr.Set("Accept", "application/yaml")
+
+		for i := 0; i < b.N; i++ {
+			tp, _ := estransport.New(estransport.Config{
+				URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
+				Header:    hdr,
 				Transport: newFakeTransport(b),
 			})
 

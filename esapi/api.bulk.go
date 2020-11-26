@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,8 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -23,19 +29,22 @@ func newBulkFunc(t Transport) Bulk {
 
 // Bulk allows to perform multiple index/update/delete operations in a single request.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-bulk.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-bulk.html.
 //
 type Bulk func(body io.Reader, o ...func(*BulkRequest)) (*Response, error)
 
 // BulkRequest configures the Bulk API request.
 //
 type BulkRequest struct {
-	Index        string
+	Index string
+
+	Body io.Reader
+
 	DocumentType string
-	Body         io.Reader
 
 	Pipeline            string
 	Refresh             string
+	RequireAlias        *bool
 	Routing             string
 	Source              []string
 	SourceExcludes      []string
@@ -47,6 +56,8 @@ type BulkRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -82,6 +93,10 @@ func (r BulkRequest) Do(ctx context.Context, transport Transport) (*Response, er
 
 	if r.Refresh != "" {
 		params["refresh"] = r.Refresh
+	}
+
+	if r.RequireAlias != nil {
+		params["require_alias"] = strconv.FormatBool(*r.RequireAlias)
 	}
 
 	if r.Routing != "" {
@@ -128,7 +143,10 @@ func (r BulkRequest) Do(ctx context.Context, transport Transport) (*Response, er
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -140,6 +158,18 @@ func (r BulkRequest) Do(ctx context.Context, transport Transport) (*Response, er
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -192,11 +222,19 @@ func (f Bulk) WithPipeline(v string) func(*BulkRequest) {
 	}
 }
 
-// WithRefresh - if `true` then refresh the effected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes..
+// WithRefresh - if `true` then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes..
 //
 func (f Bulk) WithRefresh(v string) func(*BulkRequest) {
 	return func(r *BulkRequest) {
 		r.Refresh = v
+	}
+}
+
+// WithRequireAlias - sets require_alias for all incoming documents. defaults to unset (false).
+//
+func (f Bulk) WithRequireAlias(v bool) func(*BulkRequest) {
+	return func(r *BulkRequest) {
+		r.RequireAlias = &v
 	}
 }
 
@@ -277,5 +315,29 @@ func (f Bulk) WithErrorTrace() func(*BulkRequest) {
 func (f Bulk) WithFilterPath(v ...string) func(*BulkRequest) {
 	return func(r *BulkRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Bulk) WithHeader(h map[string]string) func(*BulkRequest) {
+	return func(r *BulkRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Bulk) WithOpaqueID(s string) func(*BulkRequest) {
+	return func(r *BulkRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -23,20 +28,18 @@ func newDeleteFunc(t Transport) Delete {
 
 // Delete removes a document from the index.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-delete.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-delete.html.
 //
 type Delete func(index string, id string, o ...func(*DeleteRequest)) (*Response, error)
 
 // DeleteRequest configures the Delete API request.
 //
 type DeleteRequest struct {
-	Index        string
-	DocumentType string
-	DocumentID   string
+	Index      string
+	DocumentID string
 
 	IfPrimaryTerm       *int
 	IfSeqNo             *int
-	Parent              string
 	Refresh             string
 	Routing             string
 	Timeout             time.Duration
@@ -48,6 +51,8 @@ type DeleteRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -63,17 +68,11 @@ func (r DeleteRequest) Do(ctx context.Context, transport Transport) (*Response, 
 
 	method = "DELETE"
 
-	if r.DocumentType == "" {
-		r.DocumentType = "_doc"
-	}
-
-	path.Grow(1 + len(r.Index) + 1 + len(r.DocumentType) + 1 + len(r.DocumentID))
+	path.Grow(1 + len(r.Index) + 1 + len("_doc") + 1 + len(r.DocumentID))
 	path.WriteString("/")
 	path.WriteString(r.Index)
-	if r.DocumentType != "" {
-		path.WriteString("/")
-		path.WriteString(r.DocumentType)
-	}
+	path.WriteString("/")
+	path.WriteString("_doc")
 	path.WriteString("/")
 	path.WriteString(r.DocumentID)
 
@@ -85,10 +84,6 @@ func (r DeleteRequest) Do(ctx context.Context, transport Transport) (*Response, 
 
 	if r.IfSeqNo != nil {
 		params["if_seq_no"] = strconv.FormatInt(int64(*r.IfSeqNo), 10)
-	}
-
-	if r.Parent != "" {
-		params["parent"] = r.Parent
 	}
 
 	if r.Refresh != "" {
@@ -131,7 +126,10 @@ func (r DeleteRequest) Do(ctx context.Context, transport Transport) (*Response, 
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -139,6 +137,18 @@ func (r DeleteRequest) Do(ctx context.Context, transport Transport) (*Response, 
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -167,14 +177,6 @@ func (f Delete) WithContext(v context.Context) func(*DeleteRequest) {
 	}
 }
 
-// WithDocumentType - the type of the document.
-//
-func (f Delete) WithDocumentType(v string) func(*DeleteRequest) {
-	return func(r *DeleteRequest) {
-		r.DocumentType = v
-	}
-}
-
 // WithIfPrimaryTerm - only perform the delete operation if the last operation that has changed the document has the specified primary term.
 //
 func (f Delete) WithIfPrimaryTerm(v int) func(*DeleteRequest) {
@@ -191,15 +193,7 @@ func (f Delete) WithIfSeqNo(v int) func(*DeleteRequest) {
 	}
 }
 
-// WithParent - ID of parent document.
-//
-func (f Delete) WithParent(v string) func(*DeleteRequest) {
-	return func(r *DeleteRequest) {
-		r.Parent = v
-	}
-}
-
-// WithRefresh - if `true` then refresh the effected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes..
+// WithRefresh - if `true` then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes..
 //
 func (f Delete) WithRefresh(v string) func(*DeleteRequest) {
 	return func(r *DeleteRequest) {
@@ -276,5 +270,29 @@ func (f Delete) WithErrorTrace() func(*DeleteRequest) {
 func (f Delete) WithFilterPath(v ...string) func(*DeleteRequest) {
 	return func(r *DeleteRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Delete) WithHeader(h map[string]string) func(*DeleteRequest) {
+	return func(r *DeleteRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Delete) WithOpaqueID(s string) func(*DeleteRequest) {
+	return func(r *DeleteRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

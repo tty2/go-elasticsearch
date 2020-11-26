@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,14 +9,15 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
 
 func newIndicesPutTemplateFunc(t Transport) IndicesPutTemplate {
-	return func(body io.Reader, name string, o ...func(*IndicesPutTemplateRequest)) (*Response, error) {
-		var r = IndicesPutTemplateRequest{Body: body, Name: name}
+	return func(name string, body io.Reader, o ...func(*IndicesPutTemplateRequest)) (*Response, error) {
+		var r = IndicesPutTemplateRequest{Name: name, Body: body}
 		for _, f := range o {
 			f(&r)
 		}
@@ -24,27 +29,27 @@ func newIndicesPutTemplateFunc(t Transport) IndicesPutTemplate {
 
 // IndicesPutTemplate creates or updates an index template.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html.
 //
-type IndicesPutTemplate func(body io.Reader, name string, o ...func(*IndicesPutTemplateRequest)) (*Response, error)
+type IndicesPutTemplate func(name string, body io.Reader, o ...func(*IndicesPutTemplateRequest)) (*Response, error)
 
-// IndicesPutTemplateRequest configures the Indices  Put Template API request.
+// IndicesPutTemplateRequest configures the Indices Put Template API request.
 //
 type IndicesPutTemplateRequest struct {
 	Body io.Reader
 
-	Name            string
-	Create          *bool
-	FlatSettings    *bool
-	IncludeTypeName *bool
-	MasterTimeout   time.Duration
-	Order           *int
-	Timeout         time.Duration
+	Name string
+
+	Create        *bool
+	MasterTimeout time.Duration
+	Order         *int
 
 	Pretty     bool
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -72,24 +77,12 @@ func (r IndicesPutTemplateRequest) Do(ctx context.Context, transport Transport) 
 		params["create"] = strconv.FormatBool(*r.Create)
 	}
 
-	if r.FlatSettings != nil {
-		params["flat_settings"] = strconv.FormatBool(*r.FlatSettings)
-	}
-
-	if r.IncludeTypeName != nil {
-		params["include_type_name"] = strconv.FormatBool(*r.IncludeTypeName)
-	}
-
 	if r.MasterTimeout != 0 {
 		params["master_timeout"] = formatDuration(r.MasterTimeout)
 	}
 
 	if r.Order != nil {
 		params["order"] = strconv.FormatInt(int64(*r.Order), 10)
-	}
-
-	if r.Timeout != 0 {
-		params["timeout"] = formatDuration(r.Timeout)
 	}
 
 	if r.Pretty {
@@ -108,7 +101,10 @@ func (r IndicesPutTemplateRequest) Do(ctx context.Context, transport Transport) 
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -120,6 +116,18 @@ func (r IndicesPutTemplateRequest) Do(ctx context.Context, transport Transport) 
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -156,22 +164,6 @@ func (f IndicesPutTemplate) WithCreate(v bool) func(*IndicesPutTemplateRequest) 
 	}
 }
 
-// WithFlatSettings - return settings in flat format (default: false).
-//
-func (f IndicesPutTemplate) WithFlatSettings(v bool) func(*IndicesPutTemplateRequest) {
-	return func(r *IndicesPutTemplateRequest) {
-		r.FlatSettings = &v
-	}
-}
-
-// WithIncludeTypeName - whether a type should be returned in the body of the mappings..
-//
-func (f IndicesPutTemplate) WithIncludeTypeName(v bool) func(*IndicesPutTemplateRequest) {
-	return func(r *IndicesPutTemplateRequest) {
-		r.IncludeTypeName = &v
-	}
-}
-
 // WithMasterTimeout - specify timeout for connection to master.
 //
 func (f IndicesPutTemplate) WithMasterTimeout(v time.Duration) func(*IndicesPutTemplateRequest) {
@@ -185,14 +177,6 @@ func (f IndicesPutTemplate) WithMasterTimeout(v time.Duration) func(*IndicesPutT
 func (f IndicesPutTemplate) WithOrder(v int) func(*IndicesPutTemplateRequest) {
 	return func(r *IndicesPutTemplateRequest) {
 		r.Order = &v
-	}
-}
-
-// WithTimeout - explicit operation timeout.
-//
-func (f IndicesPutTemplate) WithTimeout(v time.Duration) func(*IndicesPutTemplateRequest) {
-	return func(r *IndicesPutTemplateRequest) {
-		r.Timeout = v
 	}
 }
 
@@ -225,5 +209,29 @@ func (f IndicesPutTemplate) WithErrorTrace() func(*IndicesPutTemplateRequest) {
 func (f IndicesPutTemplate) WithFilterPath(v ...string) func(*IndicesPutTemplateRequest) {
 	return func(r *IndicesPutTemplateRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IndicesPutTemplate) WithHeader(h map[string]string) func(*IndicesPutTemplateRequest) {
+	return func(r *IndicesPutTemplateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IndicesPutTemplate) WithOpaqueID(s string) func(*IndicesPutTemplateRequest) {
+	return func(r *IndicesPutTemplateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

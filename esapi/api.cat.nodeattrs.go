@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +28,7 @@ func newCatNodeattrsFunc(t Transport) CatNodeattrs {
 
 // CatNodeattrs returns information about custom node attributes.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-nodeattrs.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-nodeattrs.html.
 //
 type CatNodeattrs func(o ...func(*CatNodeattrsRequest)) (*Response, error)
 
@@ -42,6 +47,8 @@ type CatNodeattrsRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -106,7 +113,10 @@ func (r CatNodeattrsRequest) Do(ctx context.Context, transport Transport) (*Resp
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -114,6 +124,18 @@ func (r CatNodeattrsRequest) Do(ctx context.Context, transport Transport) (*Resp
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -227,5 +249,29 @@ func (f CatNodeattrs) WithErrorTrace() func(*CatNodeattrsRequest) {
 func (f CatNodeattrs) WithFilterPath(v ...string) func(*CatNodeattrsRequest) {
 	return func(r *CatNodeattrsRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f CatNodeattrs) WithHeader(h map[string]string) func(*CatNodeattrsRequest) {
+	return func(r *CatNodeattrsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f CatNodeattrs) WithOpaqueID(s string) func(*CatNodeattrsRequest) {
+	return func(r *CatNodeattrsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

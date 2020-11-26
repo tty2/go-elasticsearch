@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -23,23 +28,25 @@ func newIndicesGetTemplateFunc(t Transport) IndicesGetTemplate {
 
 // IndicesGetTemplate returns an index template.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html.
 //
 type IndicesGetTemplate func(o ...func(*IndicesGetTemplateRequest)) (*Response, error)
 
-// IndicesGetTemplateRequest configures the Indices  Get Template API request.
+// IndicesGetTemplateRequest configures the Indices Get Template API request.
 //
 type IndicesGetTemplateRequest struct {
-	Name            []string
-	FlatSettings    *bool
-	IncludeTypeName *bool
-	Local           *bool
-	MasterTimeout   time.Duration
+	Name []string
+
+	FlatSettings  *bool
+	Local         *bool
+	MasterTimeout time.Duration
 
 	Pretty     bool
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -69,10 +76,6 @@ func (r IndicesGetTemplateRequest) Do(ctx context.Context, transport Transport) 
 		params["flat_settings"] = strconv.FormatBool(*r.FlatSettings)
 	}
 
-	if r.IncludeTypeName != nil {
-		params["include_type_name"] = strconv.FormatBool(*r.IncludeTypeName)
-	}
-
 	if r.Local != nil {
 		params["local"] = strconv.FormatBool(*r.Local)
 	}
@@ -97,7 +100,10 @@ func (r IndicesGetTemplateRequest) Do(ctx context.Context, transport Transport) 
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -105,6 +111,18 @@ func (r IndicesGetTemplateRequest) Do(ctx context.Context, transport Transport) 
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -146,14 +164,6 @@ func (f IndicesGetTemplate) WithName(v ...string) func(*IndicesGetTemplateReques
 func (f IndicesGetTemplate) WithFlatSettings(v bool) func(*IndicesGetTemplateRequest) {
 	return func(r *IndicesGetTemplateRequest) {
 		r.FlatSettings = &v
-	}
-}
-
-// WithIncludeTypeName - whether a type should be returned in the body of the mappings..
-//
-func (f IndicesGetTemplate) WithIncludeTypeName(v bool) func(*IndicesGetTemplateRequest) {
-	return func(r *IndicesGetTemplateRequest) {
-		r.IncludeTypeName = &v
 	}
 }
 
@@ -202,5 +212,29 @@ func (f IndicesGetTemplate) WithErrorTrace() func(*IndicesGetTemplateRequest) {
 func (f IndicesGetTemplate) WithFilterPath(v ...string) func(*IndicesGetTemplateRequest) {
 	return func(r *IndicesGetTemplateRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IndicesGetTemplate) WithHeader(h map[string]string) func(*IndicesGetTemplateRequest) {
+	return func(r *IndicesGetTemplateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IndicesGetTemplate) WithOpaqueID(s string) func(*IndicesGetTemplateRequest) {
+	return func(r *IndicesGetTemplateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

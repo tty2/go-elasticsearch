@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 // +build ignore
 
 package main
@@ -24,7 +28,9 @@ func init() {
 	if pkgNamesEnv := os.Getenv("PACKAGE_NAMES"); pkgNamesEnv != "" {
 		pkgNames = strings.Split(pkgNamesEnv, ",")
 	} else {
-		pkgNames = []string{"github.com/elastic/go-elasticsearch/v8/esapi"}
+		pkgNames = []string{
+			"github.com/elastic/go-elasticsearch/v8/esapi",
+		}
 	}
 
 	if _, ok := os.LookupEnv(""); ok {

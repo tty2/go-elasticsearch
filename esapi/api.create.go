@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -26,19 +31,18 @@ func newCreateFunc(t Transport) Create {
 //
 // Returns a 409 response when a document with a same ID already exists in the index.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html.
 //
 type Create func(index string, id string, body io.Reader, o ...func(*CreateRequest)) (*Response, error)
 
 // CreateRequest configures the Create API request.
 //
 type CreateRequest struct {
-	Index        string
-	DocumentType string
-	DocumentID   string
-	Body         io.Reader
+	Index      string
+	DocumentID string
 
-	Parent              string
+	Body io.Reader
+
 	Pipeline            string
 	Refresh             string
 	Routing             string
@@ -51,6 +55,8 @@ type CreateRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -66,25 +72,15 @@ func (r CreateRequest) Do(ctx context.Context, transport Transport) (*Response, 
 
 	method = "PUT"
 
-	if r.DocumentType == "" {
-		r.DocumentType = "_doc"
-	}
-
-	path.Grow(1 + len(r.Index) + 1 + len(r.DocumentType) + 1 + len(r.DocumentID) + 1 + len("_create"))
+	path.Grow(1 + len(r.Index) + 1 + len("_create") + 1 + len(r.DocumentID))
 	path.WriteString("/")
 	path.WriteString(r.Index)
 	path.WriteString("/")
-	path.WriteString(r.DocumentType)
+	path.WriteString("_create")
 	path.WriteString("/")
 	path.WriteString(r.DocumentID)
-	path.WriteString("/")
-	path.WriteString("_create")
 
 	params = make(map[string]string)
-
-	if r.Parent != "" {
-		params["parent"] = r.Parent
-	}
 
 	if r.Pipeline != "" {
 		params["pipeline"] = r.Pipeline
@@ -130,7 +126,10 @@ func (r CreateRequest) Do(ctx context.Context, transport Transport) (*Response, 
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -142,6 +141,18 @@ func (r CreateRequest) Do(ctx context.Context, transport Transport) (*Response, 
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -167,22 +178,6 @@ func (r CreateRequest) Do(ctx context.Context, transport Transport) (*Response, 
 func (f Create) WithContext(v context.Context) func(*CreateRequest) {
 	return func(r *CreateRequest) {
 		r.ctx = v
-	}
-}
-
-// WithDocumentType - the type of the document.
-//
-func (f Create) WithDocumentType(v string) func(*CreateRequest) {
-	return func(r *CreateRequest) {
-		r.DocumentType = v
-	}
-}
-
-// WithParent - ID of the parent document.
-//
-func (f Create) WithParent(v string) func(*CreateRequest) {
-	return func(r *CreateRequest) {
-		r.Parent = v
 	}
 }
 
@@ -271,5 +266,29 @@ func (f Create) WithErrorTrace() func(*CreateRequest) {
 func (f Create) WithFilterPath(v ...string) func(*CreateRequest) {
 	return func(r *CreateRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Create) WithHeader(h map[string]string) func(*CreateRequest) {
+	return func(r *CreateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Create) WithOpaqueID(s string) func(*CreateRequest) {
+	return func(r *CreateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

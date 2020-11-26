@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strings"
 )
 
@@ -22,7 +27,7 @@ func newClearScrollFunc(t Transport) ClearScroll {
 
 // ClearScroll explicitly clears the search context for a scroll.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/current/clear-scroll-api.html.
 //
 type ClearScroll func(o ...func(*ClearScrollRequest)) (*Response, error)
 
@@ -37,6 +42,8 @@ type ClearScrollRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -80,7 +87,10 @@ func (r ClearScrollRequest) Do(ctx context.Context, transport Transport) (*Respo
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -92,6 +102,18 @@ func (r ClearScrollRequest) Do(ctx context.Context, transport Transport) (*Respo
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -120,19 +142,19 @@ func (f ClearScroll) WithContext(v context.Context) func(*ClearScrollRequest) {
 	}
 }
 
-// WithScrollID - a list of scroll ids to clear.
-//
-func (f ClearScroll) WithScrollID(v ...string) func(*ClearScrollRequest) {
-	return func(r *ClearScrollRequest) {
-		r.ScrollID = v
-	}
-}
-
 // WithBody - A comma-separated list of scroll IDs to clear if none was specified via the scroll_id parameter.
 //
 func (f ClearScroll) WithBody(v io.Reader) func(*ClearScrollRequest) {
 	return func(r *ClearScrollRequest) {
 		r.Body = v
+	}
+}
+
+// WithScrollID - a list of scroll ids to clear.
+//
+func (f ClearScroll) WithScrollID(v ...string) func(*ClearScrollRequest) {
+	return func(r *ClearScrollRequest) {
+		r.ScrollID = v
 	}
 }
 
@@ -165,5 +187,29 @@ func (f ClearScroll) WithErrorTrace() func(*ClearScrollRequest) {
 func (f ClearScroll) WithFilterPath(v ...string) func(*ClearScrollRequest) {
 	return func(r *ClearScrollRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f ClearScroll) WithHeader(h map[string]string) func(*ClearScrollRequest) {
+	return func(r *ClearScrollRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f ClearScroll) WithOpaqueID(s string) func(*ClearScrollRequest) {
+	return func(r *ClearScrollRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

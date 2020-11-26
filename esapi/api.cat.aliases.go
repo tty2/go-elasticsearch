@@ -1,12 +1,16 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func newCatAliasesFunc(t Transport) CatAliases {
@@ -23,26 +27,29 @@ func newCatAliasesFunc(t Transport) CatAliases {
 
 // CatAliases shows information about currently configured aliases to indices including filter and routing infos.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-alias.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-alias.html.
 //
 type CatAliases func(o ...func(*CatAliasesRequest)) (*Response, error)
 
 // CatAliasesRequest configures the Cat Aliases API request.
 //
 type CatAliasesRequest struct {
-	Name          []string
-	Format        string
-	H             []string
-	Help          *bool
-	Local         *bool
-	MasterTimeout time.Duration
-	S             []string
-	V             *bool
+	Name []string
+
+	ExpandWildcards string
+	Format          string
+	H               []string
+	Help            *bool
+	Local           *bool
+	S               []string
+	V               *bool
 
 	Pretty     bool
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -70,6 +77,10 @@ func (r CatAliasesRequest) Do(ctx context.Context, transport Transport) (*Respon
 
 	params = make(map[string]string)
 
+	if r.ExpandWildcards != "" {
+		params["expand_wildcards"] = r.ExpandWildcards
+	}
+
 	if r.Format != "" {
 		params["format"] = r.Format
 	}
@@ -84,10 +95,6 @@ func (r CatAliasesRequest) Do(ctx context.Context, transport Transport) (*Respon
 
 	if r.Local != nil {
 		params["local"] = strconv.FormatBool(*r.Local)
-	}
-
-	if r.MasterTimeout != 0 {
-		params["master_timeout"] = formatDuration(r.MasterTimeout)
 	}
 
 	if len(r.S) > 0 {
@@ -114,7 +121,10 @@ func (r CatAliasesRequest) Do(ctx context.Context, transport Transport) (*Respon
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -122,6 +132,18 @@ func (r CatAliasesRequest) Do(ctx context.Context, transport Transport) (*Respon
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -158,6 +180,14 @@ func (f CatAliases) WithName(v ...string) func(*CatAliasesRequest) {
 	}
 }
 
+// WithExpandWildcards - whether to expand wildcard expression to concrete indices that are open, closed or both..
+//
+func (f CatAliases) WithExpandWildcards(v string) func(*CatAliasesRequest) {
+	return func(r *CatAliasesRequest) {
+		r.ExpandWildcards = v
+	}
+}
+
 // WithFormat - a short version of the accept header, e.g. json, yaml.
 //
 func (f CatAliases) WithFormat(v string) func(*CatAliasesRequest) {
@@ -187,14 +217,6 @@ func (f CatAliases) WithHelp(v bool) func(*CatAliasesRequest) {
 func (f CatAliases) WithLocal(v bool) func(*CatAliasesRequest) {
 	return func(r *CatAliasesRequest) {
 		r.Local = &v
-	}
-}
-
-// WithMasterTimeout - explicit operation timeout for connection to master node.
-//
-func (f CatAliases) WithMasterTimeout(v time.Duration) func(*CatAliasesRequest) {
-	return func(r *CatAliasesRequest) {
-		r.MasterTimeout = v
 	}
 }
 
@@ -243,5 +265,29 @@ func (f CatAliases) WithErrorTrace() func(*CatAliasesRequest) {
 func (f CatAliases) WithFilterPath(v ...string) func(*CatAliasesRequest) {
 	return func(r *CatAliasesRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f CatAliases) WithHeader(h map[string]string) func(*CatAliasesRequest) {
+	return func(r *CatAliasesRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f CatAliases) WithOpaqueID(s string) func(*CatAliasesRequest) {
+	return func(r *CatAliasesRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

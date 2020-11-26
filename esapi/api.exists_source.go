@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -22,18 +27,18 @@ func newExistsSourceFunc(t Transport) ExistsSource {
 
 // ExistsSource returns information about whether a document source exists in an index.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html.
 //
 type ExistsSource func(index string, id string, o ...func(*ExistsSourceRequest)) (*Response, error)
 
 // ExistsSourceRequest configures the Exists Source API request.
 //
 type ExistsSourceRequest struct {
-	Index        string
-	DocumentType string
-	DocumentID   string
+	Index      string
+	DocumentID string
 
-	Parent         string
+	DocumentType string
+
 	Preference     string
 	Realtime       *bool
 	Refresh        *bool
@@ -48,6 +53,8 @@ type ExistsSourceRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -76,10 +83,6 @@ func (r ExistsSourceRequest) Do(ctx context.Context, transport Transport) (*Resp
 	path.WriteString("_source")
 
 	params = make(map[string]string)
-
-	if r.Parent != "" {
-		params["parent"] = r.Parent
-	}
 
 	if r.Preference != "" {
 		params["preference"] = r.Preference
@@ -133,7 +136,10 @@ func (r ExistsSourceRequest) Do(ctx context.Context, transport Transport) (*Resp
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -141,6 +147,18 @@ func (r ExistsSourceRequest) Do(ctx context.Context, transport Transport) (*Resp
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -174,14 +192,6 @@ func (f ExistsSource) WithContext(v context.Context) func(*ExistsSourceRequest) 
 func (f ExistsSource) WithDocumentType(v string) func(*ExistsSourceRequest) {
 	return func(r *ExistsSourceRequest) {
 		r.DocumentType = v
-	}
-}
-
-// WithParent - the ID of the parent document.
-//
-func (f ExistsSource) WithParent(v string) func(*ExistsSourceRequest) {
-	return func(r *ExistsSourceRequest) {
-		r.Parent = v
 	}
 }
 
@@ -286,5 +296,29 @@ func (f ExistsSource) WithErrorTrace() func(*ExistsSourceRequest) {
 func (f ExistsSource) WithFilterPath(v ...string) func(*ExistsSourceRequest) {
 	return func(r *ExistsSourceRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f ExistsSource) WithHeader(h map[string]string) func(*ExistsSourceRequest) {
+	return func(r *ExistsSourceRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f ExistsSource) WithOpaqueID(s string) func(*ExistsSourceRequest) {
+	return func(r *ExistsSourceRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -23,22 +28,21 @@ func newMtermvectorsFunc(t Transport) Mtermvectors {
 
 // Mtermvectors returns multiple termvectors in one request.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-termvectors.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-termvectors.html.
 //
 type Mtermvectors func(o ...func(*MtermvectorsRequest)) (*Response, error)
 
 // MtermvectorsRequest configures the Mtermvectors API request.
 //
 type MtermvectorsRequest struct {
-	Index        string
-	DocumentType string
-	Body         io.Reader
+	Index string
+
+	Body io.Reader
 
 	Fields          []string
 	FieldStatistics *bool
 	Ids             []string
 	Offsets         *bool
-	Parent          string
 	Payloads        *bool
 	Positions       *bool
 	Preference      string
@@ -52,6 +56,8 @@ type MtermvectorsRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -67,14 +73,10 @@ func (r MtermvectorsRequest) Do(ctx context.Context, transport Transport) (*Resp
 
 	method = "GET"
 
-	path.Grow(1 + len(r.Index) + 1 + len(r.DocumentType) + 1 + len("_mtermvectors"))
+	path.Grow(1 + len(r.Index) + 1 + len("_mtermvectors"))
 	if r.Index != "" {
 		path.WriteString("/")
 		path.WriteString(r.Index)
-	}
-	if r.DocumentType != "" {
-		path.WriteString("/")
-		path.WriteString(r.DocumentType)
 	}
 	path.WriteString("/")
 	path.WriteString("_mtermvectors")
@@ -95,10 +97,6 @@ func (r MtermvectorsRequest) Do(ctx context.Context, transport Transport) (*Resp
 
 	if r.Offsets != nil {
 		params["offsets"] = strconv.FormatBool(*r.Offsets)
-	}
-
-	if r.Parent != "" {
-		params["parent"] = r.Parent
 	}
 
 	if r.Payloads != nil {
@@ -149,7 +147,10 @@ func (r MtermvectorsRequest) Do(ctx context.Context, transport Transport) (*Resp
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -161,6 +162,18 @@ func (r MtermvectorsRequest) Do(ctx context.Context, transport Transport) (*Resp
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -189,27 +202,19 @@ func (f Mtermvectors) WithContext(v context.Context) func(*MtermvectorsRequest) 
 	}
 }
 
-// WithIndex - the index in which the document resides..
-//
-func (f Mtermvectors) WithIndex(v string) func(*MtermvectorsRequest) {
-	return func(r *MtermvectorsRequest) {
-		r.Index = v
-	}
-}
-
-// WithDocumentType - the type of the document..
-//
-func (f Mtermvectors) WithDocumentType(v string) func(*MtermvectorsRequest) {
-	return func(r *MtermvectorsRequest) {
-		r.DocumentType = v
-	}
-}
-
 // WithBody - Define ids, documents, parameters or a list of parameters per document here. You must at least provide a list of document ids. See documentation..
 //
 func (f Mtermvectors) WithBody(v io.Reader) func(*MtermvectorsRequest) {
 	return func(r *MtermvectorsRequest) {
 		r.Body = v
+	}
+}
+
+// WithIndex - the index in which the document resides..
+//
+func (f Mtermvectors) WithIndex(v string) func(*MtermvectorsRequest) {
+	return func(r *MtermvectorsRequest) {
+		r.Index = v
 	}
 }
 
@@ -242,14 +247,6 @@ func (f Mtermvectors) WithIds(v ...string) func(*MtermvectorsRequest) {
 func (f Mtermvectors) WithOffsets(v bool) func(*MtermvectorsRequest) {
 	return func(r *MtermvectorsRequest) {
 		r.Offsets = &v
-	}
-}
-
-// WithParent - parent ID of documents. applies to all returned documents unless otherwise specified in body "params" or "docs"..
-//
-func (f Mtermvectors) WithParent(v string) func(*MtermvectorsRequest) {
-	return func(r *MtermvectorsRequest) {
-		r.Parent = v
 	}
 }
 
@@ -346,5 +343,29 @@ func (f Mtermvectors) WithErrorTrace() func(*MtermvectorsRequest) {
 func (f Mtermvectors) WithFilterPath(v ...string) func(*MtermvectorsRequest) {
 	return func(r *MtermvectorsRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Mtermvectors) WithHeader(h map[string]string) func(*MtermvectorsRequest) {
+	return func(r *MtermvectorsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Mtermvectors) WithOpaqueID(s string) func(*MtermvectorsRequest) {
+	return func(r *MtermvectorsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

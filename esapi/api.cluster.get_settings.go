@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -23,11 +28,11 @@ func newClusterGetSettingsFunc(t Transport) ClusterGetSettings {
 
 // ClusterGetSettings returns cluster settings.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-update-settings.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-update-settings.html.
 //
 type ClusterGetSettings func(o ...func(*ClusterGetSettingsRequest)) (*Response, error)
 
-// ClusterGetSettingsRequest configures the Cluster  Get Settings API request.
+// ClusterGetSettingsRequest configures the Cluster Get Settings API request.
 //
 type ClusterGetSettingsRequest struct {
 	FlatSettings    *bool
@@ -39,6 +44,8 @@ type ClusterGetSettingsRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -91,7 +98,10 @@ func (r ClusterGetSettingsRequest) Do(ctx context.Context, transport Transport) 
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -99,6 +109,18 @@ func (r ClusterGetSettingsRequest) Do(ctx context.Context, transport Transport) 
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -188,5 +210,29 @@ func (f ClusterGetSettings) WithErrorTrace() func(*ClusterGetSettingsRequest) {
 func (f ClusterGetSettings) WithFilterPath(v ...string) func(*ClusterGetSettingsRequest) {
 	return func(r *ClusterGetSettingsRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f ClusterGetSettings) WithHeader(h map[string]string) func(*ClusterGetSettingsRequest) {
+	return func(r *ClusterGetSettingsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f ClusterGetSettings) WithOpaqueID(s string) func(*ClusterGetSettingsRequest) {
+	return func(r *ClusterGetSettingsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

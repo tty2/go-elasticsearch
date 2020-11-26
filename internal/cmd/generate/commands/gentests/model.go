@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 package gentests
 
 import (
@@ -29,6 +33,7 @@ type TestSuite struct {
 	Filepath string
 	Skip     bool
 	SkipInfo string
+	Type     string
 
 	Setup    []Action
 	Teardown []Action
@@ -92,25 +97,34 @@ func NewTestSuite(fpath string, payloads []TestPayload) TestSuite {
 		Filepath: fpath,
 	}
 
+	if strings.Contains(fpath, "x-pack") {
+		ts.Type = "xpack"
+	}
+	if ts.Type == "" {
+		ts.Type = "core"
+	}
+
 	for _, payload := range payloads {
 		sec_keys := utils.MapKeys(payload.Payload)
 		switch {
-		case len(sec_keys) == 1 && sec_keys[0] == "setup":
-			for _, v := range payload.Payload.(map[interface{}]interface{}) {
-				for _, vv := range v.([]interface{}) {
-					for k, vvv := range vv.(map[interface{}]interface{}) {
-						if k == "do" {
-							ts.Setup = append(ts.Setup, NewAction(vvv))
+		case len(sec_keys) > 0 && strings.Contains(strings.Join(sec_keys, ","), "setup") || strings.Contains(strings.Join(sec_keys, ","), "teardown"):
+			for k, v := range payload.Payload.(map[interface{}]interface{}) {
+				switch k {
+				case "setup":
+					for _, vv := range v.([]interface{}) {
+						for k, vvv := range vv.(map[interface{}]interface{}) {
+							if k == "do" {
+								ts.Setup = append(ts.Setup, NewAction(vvv))
+							}
 						}
-						// TODO: Handle skip in setup, eg. indices.get_mapping/10_basic.yml
 					}
-				}
-			}
-		case len(sec_keys) == 1 && sec_keys[0] == "teardown":
-			for _, v := range payload.Payload.(map[interface{}]interface{}) {
-				for _, vv := range v.([]interface{}) {
-					for _, vvv := range vv.(map[interface{}]interface{}) {
-						ts.Teardown = append(ts.Teardown, NewAction(vvv))
+				case "teardown":
+					for _, vv := range v.([]interface{}) {
+						for k, vvv := range vv.(map[interface{}]interface{}) {
+							if k == "do" {
+								ts.Teardown = append(ts.Teardown, NewAction(vvv))
+							}
+						}
 					}
 				}
 			}
@@ -161,6 +175,16 @@ func NewTestSuite(fpath string, payloads []TestPayload) TestSuite {
 						for _, vvv := range vv.(map[interface{}]interface{}) {
 							steps = append(steps, NewStash(vvv))
 						}
+					case "transform_and_set":
+						for _, vvv := range vv.(map[interface{}]interface{}) {
+							// NOTE: `set_and_transform` has flipped ordering of key and value, compared to `set`
+							key := utils.MapValues(vvv)[0]
+							val := utils.MapKeys(vvv)[0]
+							payload := make(map[interface{}]interface{})
+							payload[key] = val
+							// fmt.Println(payload)
+							steps = append(steps, NewStash(payload))
+						}
 					case "do":
 						for _, vvv := range vv.(map[interface{}]interface{}) {
 							steps = append(steps, NewAction(vvv))
@@ -174,7 +198,7 @@ func NewTestSuite(fpath string, payloads []TestPayload) TestSuite {
 				}
 
 				if !ts.Skip {
-					t.Name = strings.Replace(k.(string), `"`, `'`, -1)
+					t.Name = strings.ReplaceAll(k.(string), `"`, `'`)
 					t.Filepath = payload.Filepath
 					t.OrigName = k.(string)
 					t.Steps = steps
@@ -206,8 +230,8 @@ func NewAction(payload interface{}) Action {
 		switch k {
 		case "catch":
 			a.catch = v.(string)
-		case "warnings":
-			// TODO
+		case "warnings", "allowed_warnings", "node_selector", "arbitrary_key":
+			continue
 		case "headers":
 			for kk, vv := range v.(map[interface{}]interface{}) {
 				a.headers[kk.(string)] = vv.(string)
@@ -245,13 +269,18 @@ func (ts TestSuite) Name() string {
 	for _, v := range strings.Split(bname, "_") {
 		b.WriteString(strings.Title(v))
 	}
-	return b.String()
+	return strings.ReplaceAll(b.String(), "-", "")
 }
 
 // Filename returns a suitable filename for the test suite.
 //
 func (ts TestSuite) Filename() string {
 	var b strings.Builder
+
+	if ts.Type == "xpack" {
+		b.WriteString("xpack_")
+	}
+
 	b.WriteString(strings.ToLower(strings.Replace(ts.Dir, ".", "_", -1)))
 	b.WriteString("__")
 
@@ -267,14 +296,14 @@ func (ts TestSuite) SkipEsVersion(minmax string) bool {
 	return skipVersion(minmax)
 }
 
-// BaseFilename returns the original filename in form of `foo/10_bar.yml`.
+// BaseFilename extracts and returns the test filename in form of `foo/bar/10_qux.yml`.
 //
 func (t Test) BaseFilename() string {
-	parts := strings.Split(t.Filepath, string(filepath.Separator))
-	if len(parts) < 2 {
-		return ""
+	parts := strings.Split(t.Filepath, "rest-api-spec/test")
+	if len(parts) < 1 {
+		panic(fmt.Sprintf("Unexpected parts for path [%s]: %s", t.Filepath, parts))
 	}
-	return strings.Join(parts[len(parts)-2:], string(filepath.Separator))
+	return strings.TrimPrefix(parts[1], string(filepath.Separator))
 }
 
 // SkipEsVersion returns true if the test should be skipped.
@@ -340,13 +369,18 @@ func (s Steps) ContainsStash(keys ...string) bool {
 // Method returns the API method name for the action.
 //
 func (a Action) Method() string {
-	return strings.Title(a.method)
+	return utils.NameToGo(a.method)
 }
 
 // Request returns the API request name for the action.
 //
 func (a Action) Request() string {
-	return utils.NameToGo(strings.Replace(strings.Title(a.method), ".", "", -1)) + "Request"
+	var rParts []string
+	parts := strings.Split(a.method, ".")
+	for _, p := range parts {
+		rParts = append(rParts, utils.NameToGo(p))
+	}
+	return strings.Join(rParts, "") + "Request"
 }
 
 // Params returns a map of parameters for the action.
@@ -364,7 +398,7 @@ func (a Action) Params() map[string]interface{} {
 			// TODO: Properly handle ignoring status codes
 			continue
 		default:
-			kk = utils.NameToGo(k.(string))
+			kk = utils.NameToGo(k.(string), utils.APIToGo(a.method))
 		}
 		switch v.(type) {
 		case bool:
@@ -616,10 +650,18 @@ default:
 					r := strings.NewReplacer(`"`, "", `\`, "")
 					rkey := r.Replace(key)
 					output += `		if ` + nilGuard + ` { t.Error("Expected [` + rkey + `] to not be nil") }
-						actual = ` + escape(subject) + `.(encjson.Number).String()
-						// TEMP: Hack to prevent 1.0 != 1 errors
-						actual = strings.TrimSuffix(actual.(string), ".0")
+						actual = ` + escape(subject) + `
+						if intValue, ok := actual.(int); ok {
+							actual = fmt.Sprint(intValue)
+						} else {
+							actual = actual.(encjson.Number).String()
+						}
 						expected = ` + expected + `
+						// TEMP: Hack to prevent 1.0 != 1 errors
+						if strings.HasSuffix(actual.(string), ".0") {
+							actual = strings.TrimSuffix(actual.(string), ".0")
+							expected = strings.TrimSuffix(` + strconv.Quote(expected) + `, ".0")
+						}
 						assertion = fmt.Sprintf("%v", actual) == fmt.Sprintf("%v", expected)
 					if !assertion {
 						t.Logf("%v != %v", actual, expected)` + "\n"
@@ -629,25 +671,29 @@ default:
 					output += `		if ` +
 						nilGuard +
 						" || \n" +
-						`fmt.Sprintf("%s", ` + escape(subject) + `) != `
+						`strings.TrimSpace(fmt.Sprintf("%s", ` + escape(subject) + `)) != `
 					if strings.HasPrefix(expected, "$") {
-						output += `fmt.Sprintf("%s", ` + `stash["` + expected + `"]` + `)`
+						output += `strings.TrimSpace(fmt.Sprintf("%s", ` + `stash["` + expected + `"]` + `))`
 					} else {
-						output += `fmt.Sprintf("%s", ` + strconv.Quote(expected) + `)`
+						output += `strings.TrimSpace(fmt.Sprintf("%s", ` + strconv.Quote(expected) + `))`
 					}
 					output += " {\n"
 
 				// --------------------------------------------------------------------------------
 				case map[interface{}]interface{}, map[string]interface{}:
+					// We cannot reliably serialize to json and compare the json outputs: YAML responses are parsed as
+					// a map[interface{}]interface{} that encoding/json fails to marshall
+					// See https://play.golang.org/p/jhcXwg5dIrn
 					expectedPayload := fmt.Sprintf("%#v", val)
-					expectedPayload = strings.Replace(expectedPayload, "map[interface {}]interface {}", "map[string]interface {}", -1)
-					output = `		actual, _ = encjson.Marshal(` + escape(subject) + `)
-				expected, _ = encjson.Marshal(` + expectedPayload + `)
-				if fmt.Sprintf("%s", actual) != fmt.Sprintf("%s", expected) {` + "\n"
+					expectedPayload = strings.ReplaceAll(expectedPayload, "map[interface {}]interface {}", "map[string]interface {}")
+					output = `		actual = fmt.Sprintf("%v",` + escape(subject) + `)
+				expected = fmt.Sprintf("%v",` + expectedPayload + `)
+				if actual != expected {` + "\n"
 
 				// --------------------------------------------------------------------------------
 				case []interface{}:
 					expectedPayload := fmt.Sprintf("%#v", val)
+					expectedPayload = strings.ReplaceAll(expectedPayload, "map[interface {}]interface {}", "map[string]interface {}")
 					output = `		actual, _ = encjson.Marshal(` + escape(subject) + `)
 				expected, _ = encjson.Marshal(` + expectedPayload + `)
 				if fmt.Sprintf("%s", actual) != fmt.Sprintf("%s", expected) {` + "\n"

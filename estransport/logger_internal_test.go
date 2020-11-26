@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 // +build !integration
 
 package estransport
@@ -41,8 +45,8 @@ func TestTransportLogger(t *testing.T) {
 	t.Run("Defaults", func(t *testing.T) {
 		var wg sync.WaitGroup
 
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			// Logger: ioutil.Discard,
 		})
@@ -63,8 +67,8 @@ func TestTransportLogger(t *testing.T) {
 	})
 
 	t.Run("Nil", func(t *testing.T) {
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			Logger:    nil,
 		})
@@ -77,8 +81,8 @@ func TestTransportLogger(t *testing.T) {
 	})
 
 	t.Run("No HTTP response", func(t *testing.T) {
-		tp := New(Config{
-			URLs: []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs: []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: &mockTransp{
 				RoundTripFunc: func(req *http.Request) (*http.Response, error) {
 					return nil, errors.New("Mock error")
@@ -88,17 +92,20 @@ func TestTransportLogger(t *testing.T) {
 		})
 
 		req, _ := http.NewRequest("GET", "/abc", nil)
-		_, err := tp.Perform(req)
+		res, err := tp.Perform(req)
 		if err == nil {
-			t.Fatalf("Expected error: %s", err)
+			t.Errorf("Expected error: %v", err)
+		}
+		if res != nil {
+			t.Errorf("Expected nil response, got: %v", err)
 		}
 	})
 
 	t.Run("Keep response body", func(t *testing.T) {
 		var dst strings.Builder
 
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			Logger:    &TextLogger{Output: &dst, EnableRequestBody: true, EnableResponseBody: true},
 		})
@@ -128,8 +135,8 @@ func TestTransportLogger(t *testing.T) {
 	t.Run("Text with body", func(t *testing.T) {
 		var dst strings.Builder
 
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			Logger:    &TextLogger{Output: &dst, EnableRequestBody: true, EnableResponseBody: true},
 		})
@@ -173,8 +180,8 @@ func TestTransportLogger(t *testing.T) {
 	t.Run("Color with body", func(t *testing.T) {
 		var dst strings.Builder
 
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			Logger:    &ColorLogger{Output: &dst, EnableRequestBody: true, EnableResponseBody: true},
 		})
@@ -227,8 +234,8 @@ func TestTransportLogger(t *testing.T) {
 	t.Run("Curl", func(t *testing.T) {
 		var dst strings.Builder
 
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			Logger:    &CurlLogger{Output: &dst, EnableRequestBody: true, EnableResponseBody: true},
 		})
@@ -264,8 +271,8 @@ func TestTransportLogger(t *testing.T) {
 	t.Run("JSON", func(t *testing.T) {
 		var dst strings.Builder
 
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			Logger:    &JSONLogger{Output: &dst},
 		})
@@ -301,8 +308,8 @@ func TestTransportLogger(t *testing.T) {
 	t.Run("JSON with request body", func(t *testing.T) {
 		var dst strings.Builder
 
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			Logger:    &JSONLogger{Output: &dst, EnableRequestBody: true},
 		})
@@ -344,8 +351,8 @@ func TestTransportLogger(t *testing.T) {
 	t.Run("Custom", func(t *testing.T) {
 		var dst strings.Builder
 
-		tp := New(Config{
-			URLs:      []*url.URL{&url.URL{Scheme: "http", Host: "foo"}},
+		tp, _ := New(Config{
+			URLs:      []*url.URL{{Scheme: "http", Host: "foo"}},
 			Transport: newRoundTripper(),
 			Logger:    &CustomLogger{Output: &dst},
 		})
@@ -419,6 +426,21 @@ func TestTransportLogger(t *testing.T) {
 		}
 		if err.Error() != "MOCK ERROR" {
 			t.Errorf("Unexpected error value, expected [ERROR MOCK], got [%s]", err.Error())
+		}
+	})
+}
+
+func TestDebuggingLogger(t *testing.T) {
+	logger := &debuggingLogger{Output: ioutil.Discard}
+
+	t.Run("Log", func(t *testing.T) {
+		if err := logger.Log("Foo"); err != nil {
+			t.Errorf("Unexpected error: %s", err)
+		}
+	})
+	t.Run("Logf", func(t *testing.T) {
+		if err := logger.Logf("Foo %d", 1); err != nil {
+			t.Errorf("Unexpected error: %s", err)
 		}
 	})
 }

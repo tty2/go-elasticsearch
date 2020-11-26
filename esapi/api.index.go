@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -24,24 +29,24 @@ func newIndexFunc(t Transport) Index {
 
 // Index creates or updates a document in an index.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html.
 //
 type Index func(index string, body io.Reader, o ...func(*IndexRequest)) (*Response, error)
 
 // IndexRequest configures the Index API request.
 //
 type IndexRequest struct {
-	Index        string
-	DocumentType string
-	DocumentID   string
-	Body         io.Reader
+	Index      string
+	DocumentID string
+
+	Body io.Reader
 
 	IfPrimaryTerm       *int
 	IfSeqNo             *int
 	OpType              string
-	Parent              string
 	Pipeline            string
 	Refresh             string
+	RequireAlias        *bool
 	Routing             string
 	Timeout             time.Duration
 	Version             *int
@@ -52,6 +57,8 @@ type IndexRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -71,15 +78,11 @@ func (r IndexRequest) Do(ctx context.Context, transport Transport) (*Response, e
 		method = "POST"
 	}
 
-	if r.DocumentType == "" {
-		r.DocumentType = "_doc"
-	}
-
-	path.Grow(1 + len(r.Index) + 1 + len(r.DocumentType) + 1 + len(r.DocumentID))
+	path.Grow(1 + len(r.Index) + 1 + len("_doc") + 1 + len(r.DocumentID))
 	path.WriteString("/")
 	path.WriteString(r.Index)
 	path.WriteString("/")
-	path.WriteString(r.DocumentType)
+	path.WriteString("_doc")
 	if r.DocumentID != "" {
 		path.WriteString("/")
 		path.WriteString(r.DocumentID)
@@ -99,16 +102,16 @@ func (r IndexRequest) Do(ctx context.Context, transport Transport) (*Response, e
 		params["op_type"] = r.OpType
 	}
 
-	if r.Parent != "" {
-		params["parent"] = r.Parent
-	}
-
 	if r.Pipeline != "" {
 		params["pipeline"] = r.Pipeline
 	}
 
 	if r.Refresh != "" {
 		params["refresh"] = r.Refresh
+	}
+
+	if r.RequireAlias != nil {
+		params["require_alias"] = strconv.FormatBool(*r.RequireAlias)
 	}
 
 	if r.Routing != "" {
@@ -147,7 +150,10 @@ func (r IndexRequest) Do(ctx context.Context, transport Transport) (*Response, e
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -159,6 +165,18 @@ func (r IndexRequest) Do(ctx context.Context, transport Transport) (*Response, e
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -195,14 +213,6 @@ func (f Index) WithDocumentID(v string) func(*IndexRequest) {
 	}
 }
 
-// WithDocumentType - the type of the document.
-//
-func (f Index) WithDocumentType(v string) func(*IndexRequest) {
-	return func(r *IndexRequest) {
-		r.DocumentType = v
-	}
-}
-
 // WithIfPrimaryTerm - only perform the index operation if the last operation that has changed the document has the specified primary term.
 //
 func (f Index) WithIfPrimaryTerm(v int) func(*IndexRequest) {
@@ -219,19 +229,11 @@ func (f Index) WithIfSeqNo(v int) func(*IndexRequest) {
 	}
 }
 
-// WithOpType - explicit operation type.
+// WithOpType - explicit operation type. defaults to `index` for requests with an explicit document ID, and to `create`for requests without an explicit document ID.
 //
 func (f Index) WithOpType(v string) func(*IndexRequest) {
 	return func(r *IndexRequest) {
 		r.OpType = v
-	}
-}
-
-// WithParent - ID of the parent document.
-//
-func (f Index) WithParent(v string) func(*IndexRequest) {
-	return func(r *IndexRequest) {
-		r.Parent = v
 	}
 }
 
@@ -248,6 +250,14 @@ func (f Index) WithPipeline(v string) func(*IndexRequest) {
 func (f Index) WithRefresh(v string) func(*IndexRequest) {
 	return func(r *IndexRequest) {
 		r.Refresh = v
+	}
+}
+
+// WithRequireAlias - when true, requires destination to be an alias. default is false.
+//
+func (f Index) WithRequireAlias(v bool) func(*IndexRequest) {
+	return func(r *IndexRequest) {
+		r.RequireAlias = &v
 	}
 }
 
@@ -320,5 +330,29 @@ func (f Index) WithErrorTrace() func(*IndexRequest) {
 func (f Index) WithFilterPath(v ...string) func(*IndexRequest) {
 	return func(r *IndexRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Index) WithHeader(h map[string]string) func(*IndexRequest) {
+	return func(r *IndexRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Index) WithOpaqueID(s string) func(*IndexRequest) {
+	return func(r *IndexRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -23,7 +28,7 @@ func newIndicesDeleteFunc(t Transport) IndicesDelete {
 
 // IndicesDelete deletes an index.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-delete-index.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-delete-index.html.
 //
 type IndicesDelete func(index []string, o ...func(*IndicesDeleteRequest)) (*Response, error)
 
@@ -42,6 +47,8 @@ type IndicesDeleteRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -99,7 +106,10 @@ func (r IndicesDeleteRequest) Do(ctx context.Context, transport Transport) (*Res
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -107,6 +117,18 @@ func (r IndicesDeleteRequest) Do(ctx context.Context, transport Transport) (*Res
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -204,5 +226,29 @@ func (f IndicesDelete) WithErrorTrace() func(*IndicesDeleteRequest) {
 func (f IndicesDelete) WithFilterPath(v ...string) func(*IndicesDeleteRequest) {
 	return func(r *IndicesDeleteRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IndicesDelete) WithHeader(h map[string]string) func(*IndicesDeleteRequest) {
+	return func(r *IndicesDeleteRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IndicesDelete) WithOpaqueID(s string) func(*IndicesDeleteRequest) {
+	return func(r *IndicesDeleteRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

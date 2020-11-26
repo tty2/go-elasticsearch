@@ -1,10 +1,16 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -31,9 +37,9 @@ type DeleteByQuery func(index []string, body io.Reader, o ...func(*DeleteByQuery
 // DeleteByQueryRequest configures the Delete By Query API request.
 //
 type DeleteByQueryRequest struct {
-	Index        []string
-	DocumentType []string
-	Body         io.Reader
+	Index []string
+
+	Body io.Reader
 
 	AllowNoIndices      *bool
 	Analyzer            string
@@ -45,6 +51,7 @@ type DeleteByQueryRequest struct {
 	From                *int
 	IgnoreUnavailable   *bool
 	Lenient             *bool
+	MaxDocs             *int
 	Preference          string
 	Query               string
 	Refresh             *bool
@@ -55,8 +62,7 @@ type DeleteByQueryRequest struct {
 	ScrollSize          *int
 	SearchTimeout       time.Duration
 	SearchType          string
-	Size                *int
-	Slices              *int
+	Slices              interface{}
 	Sort                []string
 	Source              []string
 	SourceExcludes      []string
@@ -73,6 +79,8 @@ type DeleteByQueryRequest struct {
 	ErrorTrace bool
 	FilterPath []string
 
+	Header http.Header
+
 	ctx context.Context
 }
 
@@ -87,13 +95,9 @@ func (r DeleteByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 
 	method = "POST"
 
-	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len(strings.Join(r.DocumentType, ",")) + 1 + len("_delete_by_query"))
+	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len("_delete_by_query"))
 	path.WriteString("/")
 	path.WriteString(strings.Join(r.Index, ","))
-	if len(r.DocumentType) > 0 {
-		path.WriteString("/")
-		path.WriteString(strings.Join(r.DocumentType, ","))
-	}
 	path.WriteString("/")
 	path.WriteString("_delete_by_query")
 
@@ -139,6 +143,10 @@ func (r DeleteByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 		params["lenient"] = strconv.FormatBool(*r.Lenient)
 	}
 
+	if r.MaxDocs != nil {
+		params["max_docs"] = strconv.FormatInt(int64(*r.MaxDocs), 10)
+	}
+
 	if r.Preference != "" {
 		params["preference"] = r.Preference
 	}
@@ -179,12 +187,8 @@ func (r DeleteByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 		params["search_type"] = r.SearchType
 	}
 
-	if r.Size != nil {
-		params["size"] = strconv.FormatInt(int64(*r.Size), 10)
-	}
-
 	if r.Slices != nil {
-		params["slices"] = strconv.FormatInt(int64(*r.Slices), 10)
+		params["slices"] = fmt.Sprintf("%v", r.Slices)
 	}
 
 	if len(r.Sort) > 0 {
@@ -243,7 +247,10 @@ func (r DeleteByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -255,6 +262,18 @@ func (r DeleteByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -280,14 +299,6 @@ func (r DeleteByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 func (f DeleteByQuery) WithContext(v context.Context) func(*DeleteByQueryRequest) {
 	return func(r *DeleteByQueryRequest) {
 		r.ctx = v
-	}
-}
-
-// WithDocumentType - a list of document types to search; leave empty to perform the operation on all types.
-//
-func (f DeleteByQuery) WithDocumentType(v ...string) func(*DeleteByQueryRequest) {
-	return func(r *DeleteByQueryRequest) {
-		r.DocumentType = v
 	}
 }
 
@@ -371,6 +382,14 @@ func (f DeleteByQuery) WithLenient(v bool) func(*DeleteByQueryRequest) {
 	}
 }
 
+// WithMaxDocs - maximum number of documents to process (default: all documents).
+//
+func (f DeleteByQuery) WithMaxDocs(v int) func(*DeleteByQueryRequest) {
+	return func(r *DeleteByQueryRequest) {
+		r.MaxDocs = &v
+	}
+}
+
 // WithPreference - specify the node or shard the operation should be performed on (default: random).
 //
 func (f DeleteByQuery) WithPreference(v string) func(*DeleteByQueryRequest) {
@@ -387,7 +406,7 @@ func (f DeleteByQuery) WithQuery(v string) func(*DeleteByQueryRequest) {
 	}
 }
 
-// WithRefresh - should the effected indexes be refreshed?.
+// WithRefresh - should the affected indexes be refreshed?.
 //
 func (f DeleteByQuery) WithRefresh(v bool) func(*DeleteByQueryRequest) {
 	return func(r *DeleteByQueryRequest) {
@@ -451,19 +470,11 @@ func (f DeleteByQuery) WithSearchType(v string) func(*DeleteByQueryRequest) {
 	}
 }
 
-// WithSize - number of hits to return (default: 10).
+// WithSlices - the number of slices this task should be divided into. defaults to 1, meaning the task isn't sliced into subtasks. can be set to `auto`..
 //
-func (f DeleteByQuery) WithSize(v int) func(*DeleteByQueryRequest) {
+func (f DeleteByQuery) WithSlices(v interface{}) func(*DeleteByQueryRequest) {
 	return func(r *DeleteByQueryRequest) {
-		r.Size = &v
-	}
-}
-
-// WithSlices - the number of slices this task should be divided into. defaults to 1 meaning the task isn't sliced into subtasks..
-//
-func (f DeleteByQuery) WithSlices(v int) func(*DeleteByQueryRequest) {
-	return func(r *DeleteByQueryRequest) {
-		r.Slices = &v
+		r.Slices = v
 	}
 }
 
@@ -576,5 +587,29 @@ func (f DeleteByQuery) WithErrorTrace() func(*DeleteByQueryRequest) {
 func (f DeleteByQuery) WithFilterPath(v ...string) func(*DeleteByQueryRequest) {
 	return func(r *DeleteByQueryRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f DeleteByQuery) WithHeader(h map[string]string) func(*DeleteByQueryRequest) {
+	return func(r *DeleteByQueryRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f DeleteByQuery) WithOpaqueID(s string) func(*DeleteByQueryRequest) {
+	return func(r *DeleteByQueryRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

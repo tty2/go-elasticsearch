@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -23,15 +28,16 @@ func newIngestSimulateFunc(t Transport) IngestSimulate {
 
 // IngestSimulate allows to simulate a pipeline with example documents.
 //
-// See full documentation at https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-pipeline-api.html.
 //
 type IngestSimulate func(body io.Reader, o ...func(*IngestSimulateRequest)) (*Response, error)
 
 // IngestSimulateRequest configures the Ingest Simulate API request.
 //
 type IngestSimulateRequest struct {
-	DocumentID string
-	Body       io.Reader
+	PipelineID string
+
+	Body io.Reader
 
 	Verbose *bool
 
@@ -39,6 +45,8 @@ type IngestSimulateRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -54,14 +62,14 @@ func (r IngestSimulateRequest) Do(ctx context.Context, transport Transport) (*Re
 
 	method = "GET"
 
-	path.Grow(1 + len("_ingest") + 1 + len("pipeline") + 1 + len(r.DocumentID) + 1 + len("_simulate"))
+	path.Grow(1 + len("_ingest") + 1 + len("pipeline") + 1 + len(r.PipelineID) + 1 + len("_simulate"))
 	path.WriteString("/")
 	path.WriteString("_ingest")
 	path.WriteString("/")
 	path.WriteString("pipeline")
-	if r.DocumentID != "" {
+	if r.PipelineID != "" {
 		path.WriteString("/")
-		path.WriteString(r.DocumentID)
+		path.WriteString(r.PipelineID)
 	}
 	path.WriteString("/")
 	path.WriteString("_simulate")
@@ -88,7 +96,10 @@ func (r IngestSimulateRequest) Do(ctx context.Context, transport Transport) (*Re
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -100,6 +111,18 @@ func (r IngestSimulateRequest) Do(ctx context.Context, transport Transport) (*Re
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -128,11 +151,11 @@ func (f IngestSimulate) WithContext(v context.Context) func(*IngestSimulateReque
 	}
 }
 
-// WithDocumentID - pipeline ID.
+// WithPipelineID - pipeline ID.
 //
-func (f IngestSimulate) WithDocumentID(v string) func(*IngestSimulateRequest) {
+func (f IngestSimulate) WithPipelineID(v string) func(*IngestSimulateRequest) {
 	return func(r *IngestSimulateRequest) {
-		r.DocumentID = v
+		r.PipelineID = v
 	}
 }
 
@@ -173,5 +196,29 @@ func (f IngestSimulate) WithErrorTrace() func(*IngestSimulateRequest) {
 func (f IngestSimulate) WithFilterPath(v ...string) func(*IngestSimulateRequest) {
 	return func(r *IngestSimulateRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IngestSimulate) WithHeader(h map[string]string) func(*IngestSimulateRequest) {
+	return func(r *IngestSimulateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IngestSimulate) WithOpaqueID(s string) func(*IngestSimulateRequest) {
+	return func(r *IngestSimulateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

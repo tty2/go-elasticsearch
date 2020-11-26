@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 package utils
 
 import (
@@ -14,9 +18,13 @@ var (
 	reEsVersion = regexp.MustCompile(`elasticsearch\s+=\s+(\d+\.\d+\.\d+)`)
 )
 
-// EsVersion returns the Elasticsearch from Java property file, or an error.
+// EsVersion returns the Elasticsearch from environment variable, Java property file, or an error.
 //
 func EsVersion(fpath string) (string, error) {
+	if envEsVersion := os.Getenv("ELASTICSEARCH_BUILD_VERSION"); envEsVersion != "" {
+		return envEsVersion, nil
+	}
+
 	basePath, err := basePathFromFilepath(fpath)
 	if err != nil {
 		return "", fmt.Errorf("EsVersion: %s", err)
@@ -34,7 +42,7 @@ func EsVersion(fpath string) (string, error) {
 	return string(m[1]), nil
 }
 
-// GitCommit returns the Git commit for fpath, or an error.
+// GitCommit returns the Git commit from environment variable or parsing information from fpath, or an error.
 //
 func GitCommit(fpath string) (string, error) {
 	if gitCommitEnv := os.Getenv("ELASTICSEARCH_BUILD_HASH"); gitCommitEnv != "" {

@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -23,14 +28,15 @@ func newNodesHotThreadsFunc(t Transport) NodesHotThreads {
 
 // NodesHotThreads returns information about hot threads on each node in the cluster.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-hot-threads.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-hot-threads.html.
 //
 type NodesHotThreads func(o ...func(*NodesHotThreadsRequest)) (*Response, error)
 
-// NodesHotThreadsRequest configures the Nodes  Hot Threads API request.
+// NodesHotThreadsRequest configures the Nodes Hot Threads API request.
 //
 type NodesHotThreadsRequest struct {
-	NodeID            []string
+	NodeID []string
+
 	IgnoreIdleThreads *bool
 	Interval          time.Duration
 	Snapshots         *int
@@ -42,6 +48,8 @@ type NodesHotThreadsRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -57,11 +65,9 @@ func (r NodesHotThreadsRequest) Do(ctx context.Context, transport Transport) (*R
 
 	method = "GET"
 
-	path.Grow(1 + len("_cluster") + 1 + len("nodes") + 1 + len(strings.Join(r.NodeID, ",")) + 1 + len("hot_threads"))
+	path.Grow(1 + len("_nodes") + 1 + len(strings.Join(r.NodeID, ",")) + 1 + len("hot_threads"))
 	path.WriteString("/")
-	path.WriteString("_cluster")
-	path.WriteString("/")
-	path.WriteString("nodes")
+	path.WriteString("_nodes")
 	if len(r.NodeID) > 0 {
 		path.WriteString("/")
 		path.WriteString(strings.Join(r.NodeID, ","))
@@ -111,7 +117,10 @@ func (r NodesHotThreadsRequest) Do(ctx context.Context, transport Transport) (*R
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -119,6 +128,18 @@ func (r NodesHotThreadsRequest) Do(ctx context.Context, transport Transport) (*R
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -232,5 +253,29 @@ func (f NodesHotThreads) WithErrorTrace() func(*NodesHotThreadsRequest) {
 func (f NodesHotThreads) WithFilterPath(v ...string) func(*NodesHotThreadsRequest) {
 	return func(r *NodesHotThreadsRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f NodesHotThreads) WithHeader(h map[string]string) func(*NodesHotThreadsRequest) {
+	return func(r *NodesHotThreadsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f NodesHotThreads) WithOpaqueID(s string) func(*NodesHotThreadsRequest) {
+	return func(r *NodesHotThreadsRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

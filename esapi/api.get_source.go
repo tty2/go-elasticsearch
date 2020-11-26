@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -22,18 +27,16 @@ func newGetSourceFunc(t Transport) GetSource {
 
 // GetSource returns the source of a document.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html.
 //
 type GetSource func(index string, id string, o ...func(*GetSourceRequest)) (*Response, error)
 
 // GetSourceRequest configures the Get Source API request.
 //
 type GetSourceRequest struct {
-	Index        string
-	DocumentType string
-	DocumentID   string
+	Index      string
+	DocumentID string
 
-	Parent         string
 	Preference     string
 	Realtime       *bool
 	Refresh        *bool
@@ -49,6 +52,8 @@ type GetSourceRequest struct {
 	ErrorTrace bool
 	FilterPath []string
 
+	Header http.Header
+
 	ctx context.Context
 }
 
@@ -63,27 +68,15 @@ func (r GetSourceRequest) Do(ctx context.Context, transport Transport) (*Respons
 
 	method = "GET"
 
-	if r.DocumentType == "" {
-		r.DocumentType = "_doc"
-	}
-
-	path.Grow(1 + len(r.Index) + 1 + len(r.DocumentType) + 1 + len(r.DocumentID) + 1 + len("_source"))
+	path.Grow(1 + len(r.Index) + 1 + len("_source") + 1 + len(r.DocumentID))
 	path.WriteString("/")
 	path.WriteString(r.Index)
-	if r.DocumentType != "" {
-		path.WriteString("/")
-		path.WriteString(r.DocumentType)
-	}
-	path.WriteString("/")
-	path.WriteString(r.DocumentID)
 	path.WriteString("/")
 	path.WriteString("_source")
+	path.WriteString("/")
+	path.WriteString(r.DocumentID)
 
 	params = make(map[string]string)
-
-	if r.Parent != "" {
-		params["parent"] = r.Parent
-	}
 
 	if r.Preference != "" {
 		params["preference"] = r.Preference
@@ -137,7 +130,10 @@ func (r GetSourceRequest) Do(ctx context.Context, transport Transport) (*Respons
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -145,6 +141,18 @@ func (r GetSourceRequest) Do(ctx context.Context, transport Transport) (*Respons
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -170,22 +178,6 @@ func (r GetSourceRequest) Do(ctx context.Context, transport Transport) (*Respons
 func (f GetSource) WithContext(v context.Context) func(*GetSourceRequest) {
 	return func(r *GetSourceRequest) {
 		r.ctx = v
-	}
-}
-
-// WithDocumentType - the type of the document; deprecated and optional starting with 7.0.
-//
-func (f GetSource) WithDocumentType(v string) func(*GetSourceRequest) {
-	return func(r *GetSourceRequest) {
-		r.DocumentType = v
-	}
-}
-
-// WithParent - the ID of the parent document.
-//
-func (f GetSource) WithParent(v string) func(*GetSourceRequest) {
-	return func(r *GetSourceRequest) {
-		r.Parent = v
 	}
 }
 
@@ -290,5 +282,29 @@ func (f GetSource) WithErrorTrace() func(*GetSourceRequest) {
 func (f GetSource) WithFilterPath(v ...string) func(*GetSourceRequest) {
 	return func(r *GetSourceRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f GetSource) WithHeader(h map[string]string) func(*GetSourceRequest) {
+	return func(r *GetSourceRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f GetSource) WithOpaqueID(s string) func(*GetSourceRequest) {
+	return func(r *GetSourceRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

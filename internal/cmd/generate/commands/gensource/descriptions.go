@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 package gensource
 
 var apiDescriptionsYAML = `
@@ -240,6 +244,11 @@ indices.clear_cache:
   # http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-clearcache.html
   description: |-
     Clears all or specific caches for one or more indices.
+
+indices.clone:
+  # https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-clone-index.html
+  description: |-
+    Clones an existing index into a new index.
 
 indices.close:
   # http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-open-close.html

@@ -1,10 +1,16 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -35,10 +41,11 @@ type Reindex func(body io.Reader, o ...func(*ReindexRequest)) (*Response, error)
 type ReindexRequest struct {
 	Body io.Reader
 
+	MaxDocs             *int
 	Refresh             *bool
 	RequestsPerSecond   *int
 	Scroll              time.Duration
-	Slices              *int
+	Slices              interface{}
 	Timeout             time.Duration
 	WaitForActiveShards string
 	WaitForCompletion   *bool
@@ -47,6 +54,8 @@ type ReindexRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -67,6 +76,10 @@ func (r ReindexRequest) Do(ctx context.Context, transport Transport) (*Response,
 
 	params = make(map[string]string)
 
+	if r.MaxDocs != nil {
+		params["max_docs"] = strconv.FormatInt(int64(*r.MaxDocs), 10)
+	}
+
 	if r.Refresh != nil {
 		params["refresh"] = strconv.FormatBool(*r.Refresh)
 	}
@@ -80,7 +93,7 @@ func (r ReindexRequest) Do(ctx context.Context, transport Transport) (*Response,
 	}
 
 	if r.Slices != nil {
-		params["slices"] = strconv.FormatInt(int64(*r.Slices), 10)
+		params["slices"] = fmt.Sprintf("%v", r.Slices)
 	}
 
 	if r.Timeout != 0 {
@@ -111,7 +124,10 @@ func (r ReindexRequest) Do(ctx context.Context, transport Transport) (*Response,
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -123,6 +139,18 @@ func (r ReindexRequest) Do(ctx context.Context, transport Transport) (*Response,
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -151,7 +179,15 @@ func (f Reindex) WithContext(v context.Context) func(*ReindexRequest) {
 	}
 }
 
-// WithRefresh - should the effected indexes be refreshed?.
+// WithMaxDocs - maximum number of documents to process (default: all documents).
+//
+func (f Reindex) WithMaxDocs(v int) func(*ReindexRequest) {
+	return func(r *ReindexRequest) {
+		r.MaxDocs = &v
+	}
+}
+
+// WithRefresh - should the affected indexes be refreshed?.
 //
 func (f Reindex) WithRefresh(v bool) func(*ReindexRequest) {
 	return func(r *ReindexRequest) {
@@ -175,11 +211,11 @@ func (f Reindex) WithScroll(v time.Duration) func(*ReindexRequest) {
 	}
 }
 
-// WithSlices - the number of slices this task should be divided into. defaults to 1 meaning the task isn't sliced into subtasks..
+// WithSlices - the number of slices this task should be divided into. defaults to 1, meaning the task isn't sliced into subtasks. can be set to `auto`..
 //
-func (f Reindex) WithSlices(v int) func(*ReindexRequest) {
+func (f Reindex) WithSlices(v interface{}) func(*ReindexRequest) {
 	return func(r *ReindexRequest) {
-		r.Slices = &v
+		r.Slices = v
 	}
 }
 
@@ -236,5 +272,29 @@ func (f Reindex) WithErrorTrace() func(*ReindexRequest) {
 func (f Reindex) WithFilterPath(v ...string) func(*ReindexRequest) {
 	return func(r *ReindexRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Reindex) WithHeader(h map[string]string) func(*ReindexRequest) {
+	return func(r *ReindexRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Reindex) WithOpaqueID(s string) func(*ReindexRequest) {
+	return func(r *ReindexRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

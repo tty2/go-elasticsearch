@@ -1,12 +1,16 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func newCatRecoveryFunc(t Transport) CatRecovery {
@@ -23,7 +27,7 @@ func newCatRecoveryFunc(t Transport) CatRecovery {
 
 // CatRecovery returns information about index shard recoveries, both on-going completed.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-recovery.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-recovery.html.
 //
 type CatRecovery func(o ...func(*CatRecoveryRequest)) (*Response, error)
 
@@ -32,18 +36,22 @@ type CatRecovery func(o ...func(*CatRecoveryRequest)) (*Response, error)
 type CatRecoveryRequest struct {
 	Index []string
 
-	Bytes         string
-	Format        string
-	H             []string
-	Help          *bool
-	MasterTimeout time.Duration
-	S             []string
-	V             *bool
+	ActiveOnly *bool
+	Bytes      string
+	Detailed   *bool
+	Format     string
+	H          []string
+	Help       *bool
+	S          []string
+	Time       string
+	V          *bool
 
 	Pretty     bool
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -71,8 +79,16 @@ func (r CatRecoveryRequest) Do(ctx context.Context, transport Transport) (*Respo
 
 	params = make(map[string]string)
 
+	if r.ActiveOnly != nil {
+		params["active_only"] = strconv.FormatBool(*r.ActiveOnly)
+	}
+
 	if r.Bytes != "" {
 		params["bytes"] = r.Bytes
+	}
+
+	if r.Detailed != nil {
+		params["detailed"] = strconv.FormatBool(*r.Detailed)
 	}
 
 	if r.Format != "" {
@@ -87,12 +103,16 @@ func (r CatRecoveryRequest) Do(ctx context.Context, transport Transport) (*Respo
 		params["help"] = strconv.FormatBool(*r.Help)
 	}
 
-	if r.MasterTimeout != 0 {
-		params["master_timeout"] = formatDuration(r.MasterTimeout)
+	if len(r.Index) > 0 {
+		params["index"] = strings.Join(r.Index, ",")
 	}
 
 	if len(r.S) > 0 {
 		params["s"] = strings.Join(r.S, ",")
+	}
+
+	if r.Time != "" {
+		params["time"] = r.Time
 	}
 
 	if r.V != nil {
@@ -115,7 +135,10 @@ func (r CatRecoveryRequest) Do(ctx context.Context, transport Transport) (*Respo
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -123,6 +146,18 @@ func (r CatRecoveryRequest) Do(ctx context.Context, transport Transport) (*Respo
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -151,11 +186,19 @@ func (f CatRecovery) WithContext(v context.Context) func(*CatRecoveryRequest) {
 	}
 }
 
-// WithIndex - a list of index names to limit the returned information.
+// WithIndex - comma-separated list or wildcard expression of index names to limit the returned information.
 //
 func (f CatRecovery) WithIndex(v ...string) func(*CatRecoveryRequest) {
 	return func(r *CatRecoveryRequest) {
 		r.Index = v
+	}
+}
+
+// WithActiveOnly - if `true`, the response only includes ongoing shard recoveries.
+//
+func (f CatRecovery) WithActiveOnly(v bool) func(*CatRecoveryRequest) {
+	return func(r *CatRecoveryRequest) {
+		r.ActiveOnly = &v
 	}
 }
 
@@ -164,6 +207,14 @@ func (f CatRecovery) WithIndex(v ...string) func(*CatRecoveryRequest) {
 func (f CatRecovery) WithBytes(v string) func(*CatRecoveryRequest) {
 	return func(r *CatRecoveryRequest) {
 		r.Bytes = v
+	}
+}
+
+// WithDetailed - if `true`, the response includes detailed information about shard recoveries.
+//
+func (f CatRecovery) WithDetailed(v bool) func(*CatRecoveryRequest) {
+	return func(r *CatRecoveryRequest) {
+		r.Detailed = &v
 	}
 }
 
@@ -191,19 +242,19 @@ func (f CatRecovery) WithHelp(v bool) func(*CatRecoveryRequest) {
 	}
 }
 
-// WithMasterTimeout - explicit operation timeout for connection to master node.
-//
-func (f CatRecovery) WithMasterTimeout(v time.Duration) func(*CatRecoveryRequest) {
-	return func(r *CatRecoveryRequest) {
-		r.MasterTimeout = v
-	}
-}
-
 // WithS - comma-separated list of column names or column aliases to sort by.
 //
 func (f CatRecovery) WithS(v ...string) func(*CatRecoveryRequest) {
 	return func(r *CatRecoveryRequest) {
 		r.S = v
+	}
+}
+
+// WithTime - the unit in which to display time values.
+//
+func (f CatRecovery) WithTime(v string) func(*CatRecoveryRequest) {
+	return func(r *CatRecoveryRequest) {
+		r.Time = v
 	}
 }
 
@@ -244,5 +295,29 @@ func (f CatRecovery) WithErrorTrace() func(*CatRecoveryRequest) {
 func (f CatRecovery) WithFilterPath(v ...string) func(*CatRecoveryRequest) {
 	return func(r *CatRecoveryRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f CatRecovery) WithHeader(h map[string]string) func(*CatRecoveryRequest) {
+	return func(r *CatRecoveryRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f CatRecovery) WithOpaqueID(s string) func(*CatRecoveryRequest) {
+	return func(r *CatRecoveryRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -6,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -25,16 +30,16 @@ func newSearchFunc(t Transport) Search {
 
 // Search returns results matching a query.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html.
 //
 type Search func(o ...func(*SearchRequest)) (*Response, error)
 
 // SearchRequest configures the Search API request.
 //
 type SearchRequest struct {
-	Index        []string
-	DocumentType []string
-	Body         io.Reader
+	Index []string
+
+	Body io.Reader
 
 	AllowNoIndices             *bool
 	AllowPartialSearchResults  *bool
@@ -84,6 +89,8 @@ type SearchRequest struct {
 	ErrorTrace bool
 	FilterPath []string
 
+	Header http.Header
+
 	ctx context.Context
 }
 
@@ -98,14 +105,10 @@ func (r SearchRequest) Do(ctx context.Context, transport Transport) (*Response, 
 
 	method = "GET"
 
-	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len(strings.Join(r.DocumentType, ",")) + 1 + len("_search"))
+	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len("_search"))
 	if len(r.Index) > 0 {
 		path.WriteString("/")
 		path.WriteString(strings.Join(r.Index, ","))
-	}
-	if len(r.DocumentType) > 0 {
-		path.WriteString("/")
-		path.WriteString(strings.Join(r.DocumentType, ","))
 	}
 	path.WriteString("/")
 	path.WriteString("_search")
@@ -296,7 +299,10 @@ func (r SearchRequest) Do(ctx context.Context, transport Transport) (*Response, 
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -308,6 +314,18 @@ func (r SearchRequest) Do(ctx context.Context, transport Transport) (*Response, 
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -336,27 +354,19 @@ func (f Search) WithContext(v context.Context) func(*SearchRequest) {
 	}
 }
 
-// WithIndex - a list of index names to search; use _all to perform the operation on all indices.
-//
-func (f Search) WithIndex(v ...string) func(*SearchRequest) {
-	return func(r *SearchRequest) {
-		r.Index = v
-	}
-}
-
-// WithDocumentType - a list of document types to search; leave empty to perform the operation on all types.
-//
-func (f Search) WithDocumentType(v ...string) func(*SearchRequest) {
-	return func(r *SearchRequest) {
-		r.DocumentType = v
-	}
-}
-
 // WithBody - The search definition using the Query DSL.
 //
 func (f Search) WithBody(v io.Reader) func(*SearchRequest) {
 	return func(r *SearchRequest) {
 		r.Body = v
+	}
+}
+
+// WithIndex - a list of index names to search; use _all to perform the operation on all indices.
+//
+func (f Search) WithIndex(v ...string) func(*SearchRequest) {
+	return func(r *SearchRequest) {
+		r.Index = v
 	}
 }
 
@@ -496,7 +506,7 @@ func (f Search) WithPreference(v string) func(*SearchRequest) {
 	}
 }
 
-// WithPreFilterShardSize - a threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. this filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint..
+// WithPreFilterShardSize - a threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. this filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint..
 //
 func (f Search) WithPreFilterShardSize(v int) func(*SearchRequest) {
 	return func(r *SearchRequest) {
@@ -672,7 +682,7 @@ func (f Search) WithTrackScores(v bool) func(*SearchRequest) {
 	}
 }
 
-// WithTrackTotalHits - indicate if the number of documents that match the query should be tracked.
+// WithTrackTotalHits - indicate if the number of documents that match the query should be tracked. a number can also be specified, to accurately track the total hit count up to the number..
 //
 func (f Search) WithTrackTotalHits(v interface{}) func(*SearchRequest) {
 	return func(r *SearchRequest) {
@@ -725,5 +735,29 @@ func (f Search) WithErrorTrace() func(*SearchRequest) {
 func (f Search) WithFilterPath(v ...string) func(*SearchRequest) {
 	return func(r *SearchRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Search) WithHeader(h map[string]string) func(*SearchRequest) {
+	return func(r *SearchRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Search) WithOpaqueID(s string) func(*SearchRequest) {
+	return func(r *SearchRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

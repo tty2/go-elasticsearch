@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -23,17 +28,19 @@ func newIndicesPutAliasFunc(t Transport) IndicesPutAlias {
 
 // IndicesPutAlias creates or updates an alias.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html.
 //
 type IndicesPutAlias func(index []string, name string, o ...func(*IndicesPutAliasRequest)) (*Response, error)
 
-// IndicesPutAliasRequest configures the Indices  Put Alias API request.
+// IndicesPutAliasRequest configures the Indices Put Alias API request.
 //
 type IndicesPutAliasRequest struct {
 	Index []string
-	Body  io.Reader
 
-	Name          string
+	Body io.Reader
+
+	Name string
+
 	MasterTimeout time.Duration
 	Timeout       time.Duration
 
@@ -41,6 +48,8 @@ type IndicesPutAliasRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -90,7 +99,10 @@ func (r IndicesPutAliasRequest) Do(ctx context.Context, transport Transport) (*R
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -102,6 +114,18 @@ func (r IndicesPutAliasRequest) Do(ctx context.Context, transport Transport) (*R
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -183,5 +207,29 @@ func (f IndicesPutAlias) WithErrorTrace() func(*IndicesPutAliasRequest) {
 func (f IndicesPutAlias) WithFilterPath(v ...string) func(*IndicesPutAliasRequest) {
 	return func(r *IndicesPutAliasRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IndicesPutAlias) WithHeader(h map[string]string) func(*IndicesPutAliasRequest) {
+	return func(r *IndicesPutAliasRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IndicesPutAlias) WithOpaqueID(s string) func(*IndicesPutAliasRequest) {
+	return func(r *IndicesPutAliasRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

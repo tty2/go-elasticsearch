@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,13 +9,14 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 )
 
 func newIngestPutPipelineFunc(t Transport) IngestPutPipeline {
 	return func(id string, body io.Reader, o ...func(*IngestPutPipelineRequest)) (*Response, error) {
-		var r = IngestPutPipelineRequest{DocumentID: id, Body: body}
+		var r = IngestPutPipelineRequest{PipelineID: id, Body: body}
 		for _, f := range o {
 			f(&r)
 		}
@@ -23,15 +28,16 @@ func newIngestPutPipelineFunc(t Transport) IngestPutPipeline {
 
 // IngestPutPipeline creates or updates a pipeline.
 //
-// See full documentation at https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/put-pipeline-api.html.
 //
 type IngestPutPipeline func(id string, body io.Reader, o ...func(*IngestPutPipelineRequest)) (*Response, error)
 
-// IngestPutPipelineRequest configures the Ingest  Put Pipeline API request.
+// IngestPutPipelineRequest configures the Ingest Put Pipeline API request.
 //
 type IngestPutPipelineRequest struct {
-	DocumentID string
-	Body       io.Reader
+	PipelineID string
+
+	Body io.Reader
 
 	MasterTimeout time.Duration
 	Timeout       time.Duration
@@ -40,6 +46,8 @@ type IngestPutPipelineRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -55,13 +63,13 @@ func (r IngestPutPipelineRequest) Do(ctx context.Context, transport Transport) (
 
 	method = "PUT"
 
-	path.Grow(1 + len("_ingest") + 1 + len("pipeline") + 1 + len(r.DocumentID))
+	path.Grow(1 + len("_ingest") + 1 + len("pipeline") + 1 + len(r.PipelineID))
 	path.WriteString("/")
 	path.WriteString("_ingest")
 	path.WriteString("/")
 	path.WriteString("pipeline")
 	path.WriteString("/")
-	path.WriteString(r.DocumentID)
+	path.WriteString(r.PipelineID)
 
 	params = make(map[string]string)
 
@@ -89,7 +97,10 @@ func (r IngestPutPipelineRequest) Do(ctx context.Context, transport Transport) (
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -101,6 +112,18 @@ func (r IngestPutPipelineRequest) Do(ctx context.Context, transport Transport) (
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -174,5 +197,29 @@ func (f IngestPutPipeline) WithErrorTrace() func(*IngestPutPipelineRequest) {
 func (f IngestPutPipeline) WithFilterPath(v ...string) func(*IngestPutPipelineRequest) {
 	return func(r *IngestPutPipelineRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f IngestPutPipeline) WithHeader(h map[string]string) func(*IngestPutPipelineRequest) {
+	return func(r *IngestPutPipelineRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f IngestPutPipeline) WithOpaqueID(s string) func(*IngestPutPipelineRequest) {
+	return func(r *IngestPutPipelineRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

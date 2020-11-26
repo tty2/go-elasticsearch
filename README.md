@@ -2,10 +2,13 @@
 
 The official Go client for [Elasticsearch](https://www.elastic.co/products/elasticsearch).
 
-[![GoDoc](https://godoc.org/github.com/elastic/go-elasticsearch?status.svg)](http://godoc.org/github.com/elastic/go-elasticsearch)
-[![Travis-CI](https://travis-ci.org/elastic/go-elasticsearch.svg?branch=master)](https://travis-ci.org/elastic/go-elasticsearch)
+[![GoDoc](https://godoc.org/github.com/elastic/go-elasticsearch?status.svg)](https://pkg.go.dev/github.com/elastic/go-elasticsearch/v8)
 [![Go Report Card](https://goreportcard.com/badge/github.com/elastic/go-elasticsearch)](https://goreportcard.com/report/github.com/elastic/go-elasticsearch)
 [![codecov.io](https://codecov.io/github/elastic/go-elasticsearch/coverage.svg?branch=master)](https://codecov.io/gh/elastic/go-elasticsearch?branch=master)
+[![Build](https://github.com/elastic/go-elasticsearch/workflows/Build/badge.svg)](https://github.com/elastic/go-elasticsearch/actions?query=branch%3Amaster)
+[![Unit](https://github.com/elastic/go-elasticsearch/workflows/Unit/badge.svg)](https://github.com/elastic/go-elasticsearch/actions?query=branch%3Amaster)
+[![Integration](https://github.com/elastic/go-elasticsearch/workflows/Integration/badge.svg)](https://github.com/elastic/go-elasticsearch/actions?query=branch%3Amaster)
+[![API](https://github.com/elastic/go-elasticsearch/workflows/API/badge.svg)](https://github.com/elastic/go-elasticsearch/actions?query=branch%3Amaster)
 
 ## Compatibility
 
@@ -14,6 +17,7 @@ The client major versions correspond to the compatible Elasticsearch major versi
 When using Go modules, include the version in the import path, and specify either an explicit version or a branch:
 
     require github.com/elastic/go-elasticsearch/v7 7.x
+    require github.com/elastic/go-elasticsearch/v7 7.0.0
 
 It's possible to use multiple versions of the client in a single project:
 
@@ -36,17 +40,13 @@ The `master` branch of the client is compatible with the current `master` branch
 
 ## Installation
 
-Install the package with `go get`:
-
-    go get -u github.com/elastic/go-elasticsearch@master
-
-Or, add the package to your `go.mod` file:
+Add the package to your `go.mod` file:
 
     require github.com/elastic/go-elasticsearch/v8 master
 
 Or, clone the repository:
 
-    git clone https://github.com/elastic/go-elasticsearch.git && cd go-elasticsearch
+    git clone --branch master https://github.com/elastic/go-elasticsearch.git $GOPATH/src/github.com/elastic/go-elasticsearch
 
 A complete example:
 
@@ -70,6 +70,7 @@ cat > main.go <<-END
 
   func main() {
     es, _ := elasticsearch.NewDefaultClient()
+    log.Println(elasticsearch.Version)
     log.Println(es.Info())
   }
 END
@@ -97,6 +98,7 @@ if err != nil {
   log.Fatalf("Error getting response: %s", err)
 }
 
+defer res.Body.Close()
 log.Println(res)
 
 // [200 OK] {
@@ -105,10 +107,12 @@ log.Println(res)
 // ...
 ```
 
+> NOTE: It is _critical_ to both close the response body _and_ to consume it, in order to re-use persistent TCP connections in the default HTTP transport. If you're not interested in the response body, call `io.Copy(ioutil.Discard, res.Body)`.
+
 When you export the `ELASTICSEARCH_URL` environment variable,
 it will be used to set the cluster endpoint(s). Separate multiple adresses by a comma.
 
-To set the cluster endpoint(s) programatically, pass them in the configuration object
+To set the cluster endpoint(s) programatically, pass a configuration object
 to the `elasticsearch.NewClient()` function.
 
 ```golang
@@ -117,34 +121,55 @@ cfg := elasticsearch.Config{
     "http://localhost:9200",
     "http://localhost:9201",
   },
+  // ...
 }
 es, err := elasticsearch.NewClient(cfg)
-// ...
 ```
 
-To configure the HTTP settings, pass a [`http.Transport`](https://golang.org/pkg/net/http/#Transport)
-object in the configuration object (the values are for illustrative purposes only).
+To set the username and password, include them in the endpoint URL,
+or use the corresponding configuration options.
+
+```golang
+cfg := elasticsearch.Config{
+  // ...
+  Username: "foo",
+  Password: "bar",
+}
+```
+
+To set a custom certificate authority used to sign the certificates of cluster nodes,
+use the `CACert` configuration option.
+
+```golang
+cert, _ := ioutil.ReadFile(*cacert)
+
+cfg := elasticsearch.Config{
+  // ...
+  CACert: cert,
+}
+```
+
+To configure other HTTP settings, pass an [`http.Transport`](https://golang.org/pkg/net/http/#Transport)
+object in the configuration object.
 
 ```golang
 cfg := elasticsearch.Config{
   Transport: &http.Transport{
     MaxIdleConnsPerHost:   10,
     ResponseHeaderTimeout: time.Second,
-    DialContext:           (&net.Dialer{Timeout: time.Second}).DialContext,
     TLSClientConfig: &tls.Config{
       MinVersion: tls.VersionTLS11,
       // ...
     },
+    // ...
   },
 }
-
-es, err := elasticsearch.NewClient(cfg)
-// ...
 ```
 
 See the [`_examples/configuration.go`](_examples/configuration.go) and
 [`_examples/customization.go`](_examples/customization.go) files for
 more examples of configuration and customization of the client.
+See the [`_examples/security`](_examples/security) for an example of a security configuration.
 
 The following example demonstrates a more complex usage. It fetches the Elasticsearch version from the cluster, indexes a couple of documents concurrently, and prints the search results, using a lightweight wrapper around the response body.
 
@@ -154,6 +179,7 @@ The following example demonstrates a more complex usage. It fetches the Elastics
 package main
 
 import (
+  "bytes"
   "context"
   "encoding/json"
   "log"
@@ -188,6 +214,7 @@ func main() {
   if err != nil {
     log.Fatalf("Error getting response: %s", err)
   }
+  defer res.Body.Close()
   // Check response status
   if res.IsError() {
     log.Fatalf("Error: %s", res.String())
@@ -209,11 +236,17 @@ func main() {
     go func(i int, title string) {
       defer wg.Done()
 
-      // Set up the request object directly.
+      // Build the request body.
+      var b strings.Builder
+      b.WriteString(`{"title" : "`)
+      b.WriteString(title)
+      b.WriteString(`"}`)
+
+      // Set up the request object.
       req := esapi.IndexRequest{
         Index:      "test",
         DocumentID: strconv.Itoa(i + 1),
-        Body:       strings.NewReader(`{"title" : "` + title + `"}`),
+        Body:       strings.NewReader(b.String()),
         Refresh:    "true",
       }
 
@@ -244,23 +277,36 @@ func main() {
 
   // 3. Search for the indexed documents
   //
-  // Use the helper methods of the client.
+  // Build the request body.
+  var buf bytes.Buffer
+  query := map[string]interface{}{
+    "query": map[string]interface{}{
+      "match": map[string]interface{}{
+        "title": "test",
+      },
+    },
+  }
+  if err := json.NewEncoder(&buf).Encode(query); err != nil {
+    log.Fatalf("Error encoding query: %s", err)
+  }
+
+  // Perform the search request.
   res, err = es.Search(
     es.Search.WithContext(context.Background()),
     es.Search.WithIndex("test"),
-    es.Search.WithBody(strings.NewReader(`{"query" : { "match" : { "title" : "test" } }}`)),
+    es.Search.WithBody(&buf),
     es.Search.WithTrackTotalHits(true),
     es.Search.WithPretty(),
   )
   if err != nil {
-    log.Fatalf("ERROR: %s", err)
+    log.Fatalf("Error getting response: %s", err)
   }
   defer res.Body.Close()
 
   if res.IsError() {
     var e map[string]interface{}
     if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
-      log.Fatalf("error parsing the response body: %s", err)
+      log.Fatalf("Error parsing the response body: %s", err)
     } else {
       // Print the response status and error information.
       log.Fatalf("[%s] %s: %s",
@@ -304,13 +350,25 @@ func main() {
 As you see in the example above, the `esapi` package allows to call the Elasticsearch APIs in two distinct ways: either by creating a struct, such as `IndexRequest`, and calling its `Do()` method by passing it a context and the client, or by calling the `Search()` function on the client directly, using the option functions such as `WithIndex()`. See more information and examples in the
 [package documentation](https://godoc.org/github.com/elastic/go-elasticsearch/esapi).
 
-The `estransport` package handles the transfer of data to and from Elasticsearch. At the moment, the implementation is really minimal: it only round-robins across the configured cluster endpoints. In future, more features — retrying failed requests, ignoring certain status codes, auto-discovering nodes in the cluster, and so on — will be added.
+The `estransport` package handles the transfer of data to and from Elasticsearch, including retrying failed requests, keeping a connection pool, discovering cluster nodes and logging.
+
+Read more about the client internals and usage in the following blog posts:
+
+* https://www.elastic.co/blog/the-go-client-for-elasticsearch-introduction
+* https://www.elastic.co/blog/the-go-client-for-elasticsearch-configuration-and-customization
+* https://www.elastic.co/blog/the-go-client-for-elasticsearch-working-with-data
+
+<!-- ----------------------------------------------------------------------------------------------- -->
+
+## Helpers
+
+The `esutil` package provides convenience helpers for working with the client. At the moment, it provides the `esutil.JSONReader()` and the `esutil.BulkIndexer` helpers.
 
 <!-- ----------------------------------------------------------------------------------------------- -->
 
 ## Examples
 
-The **[`_examples`](./_examples)** folder contains a number of recipes and comprehensive examples to get you started with the client, including configuration and customization of the client, mocking the transport for unit tests, embedding the client in a custom type, building queries, performing requests, and parsing the responses.
+The **[`_examples`](./_examples)** folder contains a number of recipes and comprehensive examples to get you started with the client, including configuration and customization of the client, using a custom certificate authority (CA) for security (TLS), mocking the transport for unit tests, embedding the client in a custom type, building queries, performing requests individually and in bulk, and parsing the responses.
 
 <!-- ----------------------------------------------------------------------------------------------- -->
 

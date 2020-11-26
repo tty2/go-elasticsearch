@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -24,16 +29,16 @@ func newSearchTemplateFunc(t Transport) SearchTemplate {
 
 // SearchTemplate allows to use the Mustache language to pre-render a search definition.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html.
 //
 type SearchTemplate func(body io.Reader, o ...func(*SearchTemplateRequest)) (*Response, error)
 
 // SearchTemplateRequest configures the Search Template API request.
 //
 type SearchTemplateRequest struct {
-	Index        []string
-	DocumentType []string
-	Body         io.Reader
+	Index []string
+
+	Body io.Reader
 
 	AllowNoIndices        *bool
 	CcsMinimizeRoundtrips *bool
@@ -54,6 +59,8 @@ type SearchTemplateRequest struct {
 	ErrorTrace bool
 	FilterPath []string
 
+	Header http.Header
+
 	ctx context.Context
 }
 
@@ -68,14 +75,10 @@ func (r SearchTemplateRequest) Do(ctx context.Context, transport Transport) (*Re
 
 	method = "GET"
 
-	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len(strings.Join(r.DocumentType, ",")) + 1 + len("_search") + 1 + len("template"))
+	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len("_search") + 1 + len("template"))
 	if len(r.Index) > 0 {
 		path.WriteString("/")
 		path.WriteString(strings.Join(r.Index, ","))
-	}
-	if len(r.DocumentType) > 0 {
-		path.WriteString("/")
-		path.WriteString(strings.Join(r.DocumentType, ","))
 	}
 	path.WriteString("/")
 	path.WriteString("_search")
@@ -152,7 +155,10 @@ func (r SearchTemplateRequest) Do(ctx context.Context, transport Transport) (*Re
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -164,6 +170,18 @@ func (r SearchTemplateRequest) Do(ctx context.Context, transport Transport) (*Re
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -197,14 +215,6 @@ func (f SearchTemplate) WithContext(v context.Context) func(*SearchTemplateReque
 func (f SearchTemplate) WithIndex(v ...string) func(*SearchTemplateRequest) {
 	return func(r *SearchTemplateRequest) {
 		r.Index = v
-	}
-}
-
-// WithDocumentType - a list of document types to search; leave empty to perform the operation on all types.
-//
-func (f SearchTemplate) WithDocumentType(v ...string) func(*SearchTemplateRequest) {
-	return func(r *SearchTemplateRequest) {
-		r.DocumentType = v
 	}
 }
 
@@ -341,5 +351,29 @@ func (f SearchTemplate) WithErrorTrace() func(*SearchTemplateRequest) {
 func (f SearchTemplate) WithFilterPath(v ...string) func(*SearchTemplateRequest) {
 	return func(r *SearchTemplateRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f SearchTemplate) WithHeader(h map[string]string) func(*SearchTemplateRequest) {
+	return func(r *SearchTemplateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f SearchTemplate) WithOpaqueID(s string) func(*SearchTemplateRequest) {
+	return func(r *SearchTemplateRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

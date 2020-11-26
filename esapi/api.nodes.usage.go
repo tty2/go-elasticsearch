@@ -1,9 +1,14 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -22,21 +27,24 @@ func newNodesUsageFunc(t Transport) NodesUsage {
 
 // NodesUsage returns low-level information about REST actions usage on nodes.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-usage.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-usage.html.
 //
 type NodesUsage func(o ...func(*NodesUsageRequest)) (*Response, error)
 
 // NodesUsageRequest configures the Nodes Usage API request.
 //
 type NodesUsageRequest struct {
-	Metric  []string
-	NodeID  []string
+	Metric []string
+	NodeID []string
+
 	Timeout time.Duration
 
 	Pretty     bool
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -88,7 +96,10 @@ func (r NodesUsageRequest) Do(ctx context.Context, transport Transport) (*Respon
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -96,6 +107,18 @@ func (r NodesUsageRequest) Do(ctx context.Context, transport Transport) (*Respon
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -177,5 +200,29 @@ func (f NodesUsage) WithErrorTrace() func(*NodesUsageRequest) {
 func (f NodesUsage) WithFilterPath(v ...string) func(*NodesUsageRequest) {
 	return func(r *NodesUsageRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f NodesUsage) WithHeader(h map[string]string) func(*NodesUsageRequest) {
+	return func(r *NodesUsageRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f NodesUsage) WithOpaqueID(s string) func(*NodesUsageRequest) {
+	return func(r *NodesUsageRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

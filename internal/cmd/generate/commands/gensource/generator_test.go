@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 package gensource_test
 
 import (
@@ -35,7 +39,7 @@ func TestGenerator(t *testing.T) {
 		// t.Logf("\n%s\n", s)
 
 		if !strings.Contains(string(s), "func newInfoFunc(t Transport) Info {") {
-			t.Errorf("Incorrect output")
+			t.Error("Incorrect output")
 		}
 	})
 }

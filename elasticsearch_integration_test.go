@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V. under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+
 // +build integration,!multinode
 
 package elasticsearch_test
@@ -22,8 +26,6 @@ import (
 )
 
 func TestClientTransport(t *testing.T) {
-	t.Parallel()
-
 	t.Run("Persistent", func(t *testing.T) {
 		es, err := elasticsearch.NewDefaultClient()
 		if err != nil {
@@ -57,13 +59,12 @@ func TestClientTransport(t *testing.T) {
 				curTotal = v.HTTP.TotalOpened
 				break
 			}
-			// log.Printf("total_opened: %d", curTotal)
 
 			if curTotal < 1 {
 				t.Errorf("Unexpected total_opened: %d", curTotal)
 			}
 
-			if total < 1 {
+			if total == 0 {
 				total = curTotal
 			}
 
@@ -112,7 +113,7 @@ func TestClientTransport(t *testing.T) {
 		res, err := es.Info(es.Info.WithContext(ctx))
 		if err == nil {
 			res.Body.Close()
-			t.Fatalf("Expected 'context deadline exceeded' error")
+			t.Fatal("Expected 'context deadline exceeded' error")
 		}
 
 		log.Printf("Request cancelled with %T", err)
@@ -183,7 +184,7 @@ func TestClientCustomTransport(t *testing.T) {
 	})
 
 	t.Run("Manual", func(t *testing.T) {
-		tr := estransport.New(estransport.Config{
+		tp, _ := estransport.New(estransport.Config{
 			URLs: []*url.URL{
 				{Scheme: "http", Host: "localhost:9200"},
 			},
@@ -191,7 +192,7 @@ func TestClientCustomTransport(t *testing.T) {
 		})
 
 		es := elasticsearch.Client{
-			Transport: tr, API: esapi.New(tr),
+			Transport: tp, API: esapi.New(tp),
 		}
 
 		for i := 0; i < 10; i++ {

@@ -1,10 +1,16 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -32,9 +38,9 @@ type UpdateByQuery func(index []string, o ...func(*UpdateByQueryRequest)) (*Resp
 // UpdateByQueryRequest configures the Update By Query API request.
 //
 type UpdateByQueryRequest struct {
-	Index        []string
-	DocumentType []string
-	Body         io.Reader
+	Index []string
+
+	Body io.Reader
 
 	AllowNoIndices      *bool
 	Analyzer            string
@@ -46,6 +52,7 @@ type UpdateByQueryRequest struct {
 	From                *int
 	IgnoreUnavailable   *bool
 	Lenient             *bool
+	MaxDocs             *int
 	Pipeline            string
 	Preference          string
 	Query               string
@@ -57,8 +64,7 @@ type UpdateByQueryRequest struct {
 	ScrollSize          *int
 	SearchTimeout       time.Duration
 	SearchType          string
-	Size                *int
-	Slices              *int
+	Slices              interface{}
 	Sort                []string
 	Source              []string
 	SourceExcludes      []string
@@ -76,6 +82,8 @@ type UpdateByQueryRequest struct {
 	ErrorTrace bool
 	FilterPath []string
 
+	Header http.Header
+
 	ctx context.Context
 }
 
@@ -90,13 +98,9 @@ func (r UpdateByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 
 	method = "POST"
 
-	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len(strings.Join(r.DocumentType, ",")) + 1 + len("_update_by_query"))
+	path.Grow(1 + len(strings.Join(r.Index, ",")) + 1 + len("_update_by_query"))
 	path.WriteString("/")
 	path.WriteString(strings.Join(r.Index, ","))
-	if len(r.DocumentType) > 0 {
-		path.WriteString("/")
-		path.WriteString(strings.Join(r.DocumentType, ","))
-	}
 	path.WriteString("/")
 	path.WriteString("_update_by_query")
 
@@ -140,6 +144,10 @@ func (r UpdateByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 
 	if r.Lenient != nil {
 		params["lenient"] = strconv.FormatBool(*r.Lenient)
+	}
+
+	if r.MaxDocs != nil {
+		params["max_docs"] = strconv.FormatInt(int64(*r.MaxDocs), 10)
 	}
 
 	if r.Pipeline != "" {
@@ -186,12 +194,8 @@ func (r UpdateByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 		params["search_type"] = r.SearchType
 	}
 
-	if r.Size != nil {
-		params["size"] = strconv.FormatInt(int64(*r.Size), 10)
-	}
-
 	if r.Slices != nil {
-		params["slices"] = strconv.FormatInt(int64(*r.Slices), 10)
+		params["slices"] = fmt.Sprintf("%v", r.Slices)
 	}
 
 	if len(r.Sort) > 0 {
@@ -254,7 +258,10 @@ func (r UpdateByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -266,6 +273,18 @@ func (r UpdateByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -291,14 +310,6 @@ func (r UpdateByQueryRequest) Do(ctx context.Context, transport Transport) (*Res
 func (f UpdateByQuery) WithContext(v context.Context) func(*UpdateByQueryRequest) {
 	return func(r *UpdateByQueryRequest) {
 		r.ctx = v
-	}
-}
-
-// WithDocumentType - a list of document types to search; leave empty to perform the operation on all types.
-//
-func (f UpdateByQuery) WithDocumentType(v ...string) func(*UpdateByQueryRequest) {
-	return func(r *UpdateByQueryRequest) {
-		r.DocumentType = v
 	}
 }
 
@@ -390,6 +401,14 @@ func (f UpdateByQuery) WithLenient(v bool) func(*UpdateByQueryRequest) {
 	}
 }
 
+// WithMaxDocs - maximum number of documents to process (default: all documents).
+//
+func (f UpdateByQuery) WithMaxDocs(v int) func(*UpdateByQueryRequest) {
+	return func(r *UpdateByQueryRequest) {
+		r.MaxDocs = &v
+	}
+}
+
 // WithPipeline - ingest pipeline to set on index requests made by this action. (default: none).
 //
 func (f UpdateByQuery) WithPipeline(v string) func(*UpdateByQueryRequest) {
@@ -414,7 +433,7 @@ func (f UpdateByQuery) WithQuery(v string) func(*UpdateByQueryRequest) {
 	}
 }
 
-// WithRefresh - should the effected indexes be refreshed?.
+// WithRefresh - should the affected indexes be refreshed?.
 //
 func (f UpdateByQuery) WithRefresh(v bool) func(*UpdateByQueryRequest) {
 	return func(r *UpdateByQueryRequest) {
@@ -478,19 +497,11 @@ func (f UpdateByQuery) WithSearchType(v string) func(*UpdateByQueryRequest) {
 	}
 }
 
-// WithSize - number of hits to return (default: 10).
+// WithSlices - the number of slices this task should be divided into. defaults to 1, meaning the task isn't sliced into subtasks. can be set to `auto`..
 //
-func (f UpdateByQuery) WithSize(v int) func(*UpdateByQueryRequest) {
+func (f UpdateByQuery) WithSlices(v interface{}) func(*UpdateByQueryRequest) {
 	return func(r *UpdateByQueryRequest) {
-		r.Size = &v
-	}
-}
-
-// WithSlices - the number of slices this task should be divided into. defaults to 1 meaning the task isn't sliced into subtasks..
-//
-func (f UpdateByQuery) WithSlices(v int) func(*UpdateByQueryRequest) {
-	return func(r *UpdateByQueryRequest) {
-		r.Slices = &v
+		r.Slices = v
 	}
 }
 
@@ -611,5 +622,29 @@ func (f UpdateByQuery) WithErrorTrace() func(*UpdateByQueryRequest) {
 func (f UpdateByQuery) WithFilterPath(v ...string) func(*UpdateByQueryRequest) {
 	return func(r *UpdateByQueryRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f UpdateByQuery) WithHeader(h map[string]string) func(*UpdateByQueryRequest) {
+	return func(r *UpdateByQueryRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f UpdateByQuery) WithOpaqueID(s string) func(*UpdateByQueryRequest) {
+	return func(r *UpdateByQueryRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

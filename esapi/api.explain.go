@@ -1,3 +1,7 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
@@ -5,6 +9,7 @@ package esapi
 import (
 	"context"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -23,24 +28,23 @@ func newExplainFunc(t Transport) Explain {
 
 // Explain returns information about why a specific matches (or doesn't match) a query.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/search-explain.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/search-explain.html.
 //
 type Explain func(index string, id string, o ...func(*ExplainRequest)) (*Response, error)
 
 // ExplainRequest configures the Explain API request.
 //
 type ExplainRequest struct {
-	Index        string
-	DocumentType string
-	DocumentID   string
-	Body         io.Reader
+	Index      string
+	DocumentID string
+
+	Body io.Reader
 
 	Analyzer        string
 	AnalyzeWildcard *bool
 	DefaultOperator string
 	Df              string
 	Lenient         *bool
-	Parent          string
 	Preference      string
 	Query           string
 	Routing         string
@@ -53,6 +57,8 @@ type ExplainRequest struct {
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -68,21 +74,13 @@ func (r ExplainRequest) Do(ctx context.Context, transport Transport) (*Response,
 
 	method = "GET"
 
-	if r.DocumentType == "" {
-		r.DocumentType = "_doc"
-	}
-
-	path.Grow(1 + len(r.Index) + 1 + len(r.DocumentType) + 1 + len(r.DocumentID) + 1 + len("_explain"))
+	path.Grow(1 + len(r.Index) + 1 + len("_explain") + 1 + len(r.DocumentID))
 	path.WriteString("/")
 	path.WriteString(r.Index)
-	if r.DocumentType != "" {
-		path.WriteString("/")
-		path.WriteString(r.DocumentType)
-	}
-	path.WriteString("/")
-	path.WriteString(r.DocumentID)
 	path.WriteString("/")
 	path.WriteString("_explain")
+	path.WriteString("/")
+	path.WriteString(r.DocumentID)
 
 	params = make(map[string]string)
 
@@ -104,10 +102,6 @@ func (r ExplainRequest) Do(ctx context.Context, transport Transport) (*Response,
 
 	if r.Lenient != nil {
 		params["lenient"] = strconv.FormatBool(*r.Lenient)
-	}
-
-	if r.Parent != "" {
-		params["parent"] = r.Parent
 	}
 
 	if r.Preference != "" {
@@ -154,7 +148,10 @@ func (r ExplainRequest) Do(ctx context.Context, transport Transport) (*Response,
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), r.Body)
+	req, err := newRequest(method, path.String(), r.Body)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -166,6 +163,18 @@ func (r ExplainRequest) Do(ctx context.Context, transport Transport) (*Response,
 
 	if r.Body != nil {
 		req.Header[headerContentType] = headerContentTypeJSON
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -191,14 +200,6 @@ func (r ExplainRequest) Do(ctx context.Context, transport Transport) (*Response,
 func (f Explain) WithContext(v context.Context) func(*ExplainRequest) {
 	return func(r *ExplainRequest) {
 		r.ctx = v
-	}
-}
-
-// WithDocumentType - the type of the document.
-//
-func (f Explain) WithDocumentType(v string) func(*ExplainRequest) {
-	return func(r *ExplainRequest) {
-		r.DocumentType = v
 	}
 }
 
@@ -247,14 +248,6 @@ func (f Explain) WithDf(v string) func(*ExplainRequest) {
 func (f Explain) WithLenient(v bool) func(*ExplainRequest) {
 	return func(r *ExplainRequest) {
 		r.Lenient = &v
-	}
-}
-
-// WithParent - the ID of the parent document.
-//
-func (f Explain) WithParent(v string) func(*ExplainRequest) {
-	return func(r *ExplainRequest) {
-		r.Parent = v
 	}
 }
 
@@ -343,5 +336,29 @@ func (f Explain) WithErrorTrace() func(*ExplainRequest) {
 func (f Explain) WithFilterPath(v ...string) func(*ExplainRequest) {
 	return func(r *ExplainRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f Explain) WithHeader(h map[string]string) func(*ExplainRequest) {
+	return func(r *ExplainRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f Explain) WithOpaqueID(s string) func(*ExplainRequest) {
+	return func(r *ExplainRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }

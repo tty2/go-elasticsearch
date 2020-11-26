@@ -1,9 +1,15 @@
+// Licensed to Elasticsearch B.V under one or more agreements.
+// Elasticsearch B.V. licenses this file to you under the Apache 2.0 License.
+// See the LICENSE file in the project root for more information.
+//
 // Code generated from specification version 8.0.0: DO NOT EDIT
 
 package esapi
 
 import (
 	"context"
+	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -21,22 +27,26 @@ func newTasksCancelFunc(t Transport) TasksCancel {
 
 // TasksCancel cancels a task, if it can be cancelled through an API.
 //
-// See full documentation at http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html.
+// See full documentation at https://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html.
 //
 type TasksCancel func(o ...func(*TasksCancelRequest)) (*Response, error)
 
 // TasksCancelRequest configures the Tasks Cancel API request.
 //
 type TasksCancelRequest struct {
-	TaskID       string
-	Actions      []string
-	Nodes        []string
-	ParentTaskID string
+	TaskID string
+
+	Actions           []string
+	Nodes             []string
+	ParentTaskID      string
+	WaitForCompletion *bool
 
 	Pretty     bool
 	Human      bool
 	ErrorTrace bool
 	FilterPath []string
+
+	Header http.Header
 
 	ctx context.Context
 }
@@ -76,6 +86,10 @@ func (r TasksCancelRequest) Do(ctx context.Context, transport Transport) (*Respo
 		params["parent_task_id"] = r.ParentTaskID
 	}
 
+	if r.WaitForCompletion != nil {
+		params["wait_for_completion"] = strconv.FormatBool(*r.WaitForCompletion)
+	}
+
 	if r.Pretty {
 		params["pretty"] = "true"
 	}
@@ -92,7 +106,10 @@ func (r TasksCancelRequest) Do(ctx context.Context, transport Transport) (*Respo
 		params["filter_path"] = strings.Join(r.FilterPath, ",")
 	}
 
-	req, _ := newRequest(method, path.String(), nil)
+	req, err := newRequest(method, path.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(params) > 0 {
 		q := req.URL.Query()
@@ -100,6 +117,18 @@ func (r TasksCancelRequest) Do(ctx context.Context, transport Transport) (*Respo
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
+	}
+
+	if len(r.Header) > 0 {
+		if len(req.Header) == 0 {
+			req.Header = r.Header
+		} else {
+			for k, vv := range r.Header {
+				for _, v := range vv {
+					req.Header.Add(k, v)
+				}
+			}
+		}
 	}
 
 	if ctx != nil {
@@ -160,6 +189,14 @@ func (f TasksCancel) WithParentTaskID(v string) func(*TasksCancelRequest) {
 	}
 }
 
+// WithWaitForCompletion - should the request block until the cancellation of the task and its descendant tasks is completed. defaults to false.
+//
+func (f TasksCancel) WithWaitForCompletion(v bool) func(*TasksCancelRequest) {
+	return func(r *TasksCancelRequest) {
+		r.WaitForCompletion = &v
+	}
+}
+
 // WithPretty makes the response body pretty-printed.
 //
 func (f TasksCancel) WithPretty() func(*TasksCancelRequest) {
@@ -189,5 +226,29 @@ func (f TasksCancel) WithErrorTrace() func(*TasksCancelRequest) {
 func (f TasksCancel) WithFilterPath(v ...string) func(*TasksCancelRequest) {
 	return func(r *TasksCancelRequest) {
 		r.FilterPath = v
+	}
+}
+
+// WithHeader adds the headers to the HTTP request.
+//
+func (f TasksCancel) WithHeader(h map[string]string) func(*TasksCancelRequest) {
+	return func(r *TasksCancelRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		for k, v := range h {
+			r.Header.Add(k, v)
+		}
+	}
+}
+
+// WithOpaqueID adds the X-Opaque-Id header to the HTTP request.
+//
+func (f TasksCancel) WithOpaqueID(s string) func(*TasksCancelRequest) {
+	return func(r *TasksCancelRequest) {
+		if r.Header == nil {
+			r.Header = make(http.Header)
+		}
+		r.Header.Set("X-Opaque-Id", s)
 	}
 }
