@@ -124,7 +124,10 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 
 	if len(urls) == 0 {
-		u, _ := url.Parse(defaultURL) // errcheck exclude
+		u, err := url.Parse(defaultURL)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse url: %v", err)
+		}
 		urls = append(urls, u)
 	}
 
